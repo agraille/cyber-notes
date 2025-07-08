@@ -1,99 +1,206 @@
-# 🌐 Nmap - Scanner de ports et services
+# 🎯 Nmap Cheatsheet – Reconnaissance
 
-## Description
-Nmap (Network Mapper) est un outil open source très puissant utilisé pour scanner des réseaux, découvrir les hôtes actifs, identifier les ports ouverts et les services associés. Il permet aussi la détection des systèmes d'exploitation, des versions des services, et peut lancer des scripts pour détecter des vulnérabilités.
+## 🔍 Scans de base
 
-Nmap est très utilisé en pentesting et en administration réseau pour cartographier un réseau, effectuer de la reconnaissance et préparer des tests d'intrusion.
+### Scan rapide
+```bash
+nmap -T4 -F <target>
+```
+> Scan rapide des 100 ports les plus communs
+
+### Scan complet
+```bash
+nmap -p- <target>
+```
+> Scan de tous les ports (1-65535)
+
+### Scan avec version des services
+```bash
+nmap -sV <target>
+```
+> Détecte les versions des services
+
+### Scan avec détection OS
+```bash
+nmap -O <target>
+```
+> Détecte le système d'exploitation
 
 ---
 
-## Commandes courantes
+## 🚀 Scans avancés
 
-### Scan simple d'une IP
+### Scan agressif complet
 ```bash
-nmap 192.168.1.10
+nmap -A -T4 <target>
+```
+> Combine -sV, -O, -sC (scripts par défaut)
+
+### Scan UDP
+```bash
+nmap -sU <target>
+```
+> Scan des ports UDP (plus lent)
+
+### Scan SYN Stealth
+```bash
+nmap -sS <target>
+```
+> Scan furtif (par défaut si root)
+
+### Scan de réseau
+```bash
+nmap -sn 192.168.1.0/24
+```
+> Découverte d'hôtes (ping scan)
+
+---
+
+## 📜 Scripts NSE
+
+### Scripts par défaut
+```bash
+nmap -sC <target>
+```
+> Exécute les scripts safe par défaut
+
+### Scripts spécifiques
+```bash
+nmap --script vuln <target>
+```
+> Scripts de détection de vulnérabilités
+
+### Scripts HTTP
+```bash
+nmap -p 80,443 --script http-enum <target>
+```
+> Énumération de directories web
+
+### Scripts SMB
+```bash
+nmap -p 445 --script smb-enum-shares <target>
+```
+> Énumération des partages SMB
+
+---
+
+## ⚡ Optimisation et timing
+
+### Templates de timing
+```bash
+nmap -T0  # Paranoïaque (très lent)
+nmap -T1  # Furtif
+nmap -T2  # Poli
+nmap -T3  # Normal (défaut)
+nmap -T4  # Agressif
+nmap -T5  # Insane (très rapide)
 ```
 
-### Scan d'une plage d'adresses IP
+### Contrôle de débit
 ```bash
-nmap 192.168.1.0/24
+nmap --max-rate 1000 <target>
+```
+> Limite à 1000 paquets/seconde
+
+---
+
+## 🎭 Évasion et discrétion
+
+### Fragmentation
+```bash
+nmap -f <target>
+```
+> Fragmente les paquets
+
+### Adresse source aléatoire
+```bash
+nmap -D RND:10 <target>
+```
+> Utilise 10 adresses sources aléatoires
+
+### Spoofing MAC
+```bash
+nmap --spoof-mac 0 <target>
+```
+> Génère une adresse MAC aléatoire
+
+---
+
+## 📊 Formats de sortie
+
+### Sortie normale
+```bash
+nmap -oN scan.txt <target>
 ```
 
-### Scan en mode furtif (SYN scan)
+### Sortie XML
 ```bash
-nmap -sS 192.168.1.10
+nmap -oX scan.xml <target>
 ```
 
-### Scan complet avec détection d'OS, versions, scripts NSE
+### Sortie greppable
 ```bash
-nmap -A 192.168.1.10
+nmap -oG scan.gnmap <target>
 ```
 
-### Scan sans ping (utile contre certains firewall)
+### Toutes les sorties
 ```bash
-nmap -Pn 192.168.1.10
-```
-
-### Scan avec détection des versions des services
-```bash
-nmap -sV 192.168.1.10
-```
-
-### Scan sur un port spécifique
-```bash
-nmap -p 80 192.168.1.10
+nmap -oA scan <target>
 ```
 
 ---
 
-## Options importantes
+## 🔥 Commandes utiles
 
-| Option       | Description                                               |
-|--------------|-----------------------------------------------------------|
-| `-sS`        | SYN scan (semi-ouvert, furtif)                            |
-| `-sV`        | Détecte la version des services                           |
-| `-O`         | Détecte le système d'exploitation                          |
-| `-Pn`        | Ignore la phase de ping avant le scan                      |
-| `--script`   | Lance un ou plusieurs scripts NSE (Nmap Scripting Engine)  |
-| `-p`         | Spécifie les ports à scanner                              |
-| `-A`         | Active la détection OS, version, script, traceroute      |
-| `-oN/-oX`    | Sauvegarde les résultats en format normal ou XML          |
-
----
-
-## Exemples avancés
-
-### Scan avec script pour détecter les vulnérabilités HTTP
+### Scan rapide réseau avec services
 ```bash
-nmap --script=http-vuln* -p 80 192.168.1.10
+nmap -sS -sV -T4 -F 192.168.1.0/24
 ```
 
-### Sauvegarder le scan dans un fichier
+### Scan complet d'un hôte
 ```bash
-nmap -oN resultat_nmap.txt 192.168.1.10
+nmap -sS -sV -sC -O -p- -T4 <target>
 ```
 
-### Scan rapide des 100 ports les plus courants
+### Scan web avec scripts
 ```bash
-nmap --top-ports 100 192.168.1.10
+nmap -p 80,443 -sV -sC --script http-* <target>
+```
+
+### Scan vulnérabilités
+```bash
+nmap --script vuln -sV <target>
 ```
 
 ---
 
-## Ressources et documentation
+## 🎯 Cibles spécifiques
 
-- Site officiel : [https://nmap.org](https://nmap.org)  
-- Cheat sheet Nmap : [https://cheatography.com/davechild/cheat-sheets/nmap/](https://cheatography.com/davechild/cheat-sheets/nmap/)  
-- Tutoriel complet : [https://nmap.org/book/man-briefoptions.html](https://nmap.org/book/man-briefoptions.html)
+### Ports spécifiques
+```bash
+nmap -p 22,80,443,3389 <target>
+```
+
+### Plage de ports
+```bash
+nmap -p 1-1000 <target>
+```
+
+### Exclure des ports
+```bash
+nmap -p- --exclude-ports 22,80 <target>
+```
 
 ---
 
-## Remarques
+## 🔍 Post-scan
 
-- Toujours vérifier la légalité avant de scanner un réseau.  
-- Nmap est compatible Linux, Windows, MacOS.  
-- Utiliser les scripts NSE avec précaution car certains peuvent être bruyants.
+### Recherche dans les résultats
+```bash
+grep -E "(open|filtered)" scan.gnmap
+```
 
----
-
-*Fin du fichier*
+### Extraction des ports ouverts
+```bash
+grep -oP '\d+/open' scan.gnmap | cut -d'/' -f1 | sort -n
+```
