@@ -62,6 +62,7 @@ gobuster dns -d target.com -w /path/to/subdomain-wordlist
 ```bash
 gobuster vhost -u http://target.com -w /path/to/wordlist
 ```
+> add --append-domain -r si spam de redirection
 > Découverte de virtual hosts
 
 ### S3 bucket enumeration
