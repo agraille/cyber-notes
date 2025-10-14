@@ -2,7 +2,7 @@
 
 ## 📂 Navigation système
 
-pwd  
+pwd
 > Affiche le chemin absolu du répertoire courant.  
 
 ls -la  
@@ -32,6 +32,9 @@ mv source destination
 
 find / -name "fichier"  
 > Recherche un fichier à partir de la racine.  
+
+find / -user "user"  
+> Recherche les fichier accessible par user à partir de la racine.  
 
 locate fichier  
 > Recherche rapide dans la base de données pré-indexée.  

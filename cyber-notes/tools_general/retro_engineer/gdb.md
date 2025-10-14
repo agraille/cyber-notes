@@ -47,7 +47,7 @@ break *0xADDRESS
 break fonction  
 > Breakpoint à l'entrée d'une fonction
 
-break ligne  
+break ligne
 > Breakpoint à une ligne du code
 
 info breakpoints  
