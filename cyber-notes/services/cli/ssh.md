@@ -5,8 +5,9 @@ Ce fichier est dédié à l’utilisation offensive de SSH : **scan**, **connexi
 ---
 
 ## 🔍 1. Scan & Détection
-
+```
 nmap -p 22 <IP>  
+```
 > Scan du port SSH
 
 nmap -p 22 --script ssh-hostkey,ssh2-enum-algos <IP>  
