@@ -6,10 +6,10 @@
 
 ### 🔍 Affichage d'adresses IP
 
-ip a  
+ip a
 > Affiche toutes les interfaces réseau et leurs adresses IP.  
 
-hostname -I  
+hostname -I
 > Affiche l’adresse IP locale.  
 
 curl ifconfig.me 
@@ -95,8 +95,9 @@ dig +short myip.opendns.com @resolver1.opendns.com
 ---
 
 ## 🛠️ Alias utiles à mettre dans ~/.bashrc
-
+```
 alias ll='ls -la'  
+```
 > Affiche tous les fichiers avec détails.  
 
 alias iplocal='ip a | grep inet'  
