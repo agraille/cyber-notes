@@ -28,6 +28,17 @@ cat /etc/os-release
 
 ```
 sudo -l  
+
+exemple : 
+user1@htb:~$ sudo -l
+Matching Defaults entries for user1 on ng-1926558-gettingstartedprivesc-9nlkr-55fd458766-8ff79:
+    env_reset, mail_badpass, secure_path=/usr/local/sbin\:/usr/local/bin\:/usr/sbin\:/usr/bin\:/sbin\:/bin\:/snap/bin
+
+User user1 may run the following commands on ng-1926558-gettingstartedprivesc-9nlkr-55fd458766-8ff79:
+    (user2 : user2) NOPASSWD: /bin/bash
+
+user1@htb:~$ sudo -u user2 /bin/bash
+
 ```
 > Liste les commandes sudo que l'utilisateur peut exécuter sans mot de passe
 
@@ -40,15 +51,48 @@ env
 
 ## 2️⃣ Recherche de failles liées aux permissions
 
+> flag utile pour find : 
+> -not -path "/proc/*" -not -path "/dev/*"
+
+
 ```
 find / -perm -4000 -type f 2>/dev/null  
+find / -perm -4000 -type f -exec ls -l {} 2>/dev/null \;
 ```
 > Recherche fichiers avec le bit SUID (exécuté avec droits du propriétaire)
 
 ```
 find / -perm -2000 -type f 2>/dev/null  
 ```
-> Recherche fichiers avec le bit SGID
+> Recherche fichiers avec le bit SGID (exécuté avec droits du groupe)
+  
+```
+find / -type f -readable 2>/dev/null
+find / -type f -writable 2>/dev/null
+  
+```
+> penser au -d pour les repertoire 
+> -maxdepth 10 Ne descend pas à plus de 10 niveaux de sous‑dossiers.
+>-readable = fichier que TON utilisateur peut lire ou ecrire . 
+  
+```
+find / -perm -o+r -type f 2>/dev/null  
+find / -perm -o+w -type f 2>/dev/null
+
+```
+>-o+r = permission lecture pour "others"
+
+>souvent intéressant pour repérer des secrets accessibles.
+  
+```
+find / -user user 2>/dev/null  
+```
+>Fichiers appartenant à un utilisateur précis
+  
+```
+find / -perm -o+x -type f 2>/dev/null  
+```
+>Fichiers exécutables globalement
 
 ```
 ls -la /etc/passwd /etc/shadow  
@@ -63,6 +107,8 @@ ls -la /var/run/docker.sock
 ---
 
 ## 3️⃣ Vérification des configurations vulnérables
+
+>REGARDER SI CLEF RSA EXPOSE
 
 ```
 cat /etc/sudoers  

