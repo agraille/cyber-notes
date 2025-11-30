@@ -8,7 +8,9 @@ Ce fichier couvre les étapes et outils essentiels pour auditer, attaquer ou pos
 
 ### 🔍 Localisation classique (post-exploitation)
 
+```
 ~/.aws/credentials  
+```
 > Fichier contenant les clés `aws_access_key_id` et `aws_secret_access_key`
 
 Variables d’environnement :
@@ -16,7 +18,9 @@ Variables d’environnement :
 echo $AWS_ACCESS_KEY_ID  
 echo $AWS_SECRET_ACCESS_KEY
 
+```
 grep -r "AKIA" /  
+```
 > Recherche brutale de clés AWS (`AKIA` = ID de clé AWS)
 
 ---

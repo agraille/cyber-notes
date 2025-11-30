@@ -1,9 +1,9 @@
-📧 SMTP – Cheatsheet Cybersécurité
+# 📧 SMTP – Cheatsheet Cybersécurité
 
 Cheatsheet complète pour analyser, énumérer, tester, abuser, et exploiter les serveurs SMTP.
 Utilisable en pentest interne/externe, CTF, formation SOC, etc.
 
-🔍 1. Scan & Détection du service SMTP
+### 🔍 1. Scan & Détection du service SMTP
 
 nmap -p 25,465,587 <IP>
 
