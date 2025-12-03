@@ -7,3 +7,5 @@ rajouter les ``` sur chaque ligne de commade pour affichage propre sur les le ct
 wpscan
 
 install seclist
+
+whatweb
