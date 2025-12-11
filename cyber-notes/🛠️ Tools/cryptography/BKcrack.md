@@ -68,7 +68,7 @@ Taille
 
 Exemple JPEG :
 
-printf "\xFF\xD8\xFF\xE0" > plain.jpg
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01" > plain.jpg  
 
 2) Lancer BKCrack pour récupérer les clés
 bkcrack -C archive.zip -c fichier_chiffre -p fichier_plain
