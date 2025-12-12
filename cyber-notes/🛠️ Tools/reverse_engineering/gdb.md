@@ -1,174 +1,989 @@
-# 🐞 GDB - Cheatsheet Cybersécurité
+# 🐛 GDB - Cheatsheet Cyber Sécurité
 
-Ce fichier fournit les commandes essentielles GDB pour analyser, débugger et exploiter des binaires sous Linux, particulièrement utile pour les CTFs, les failles de type buffer overflow ou les binaires protégés.
-
----
-
-## ⚙️ 1. Lancer GDB
-
-gdb ./binaire  
-> Ouvre GDB sur un binaire local
-
-gdb -q ./binaire  
-> Mode silencieux (sans bannière)
-
-gdb -p PID  
-> Attache GDB à un processus en cours
+Guide orienté **reverse engineering** et **exploitation de binaires** avec GDB (GNU Debugger). Focus sur l'analyse de vulnérabilités et le pwn.
 
 ---
 
-## 🏁 2. Exécution
+## 📖 Qu'est-ce que GDB ?
 
-run ARG1 ARG2  
-> Lance le binaire avec des arguments
+**GDB (GNU Debugger)** est le debugger standard pour Linux permettant de :
+- Analyser des binaires en temps réel
+- Détecter des buffer overflows
+- Exploiter des vulnérabilités
+- Reverse engineering
+- Analyse de malware
+- Développement d'exploits
 
-start  
-> Lance l'exécution et arrête à main()
-
-continue (ou c)  
-> Reprend l'exécution après un break
-
-next (ou n)  
-> Exécute la ligne suivante (sans entrer dans les fonctions)
-
-step (ou s)  
-> Exécute la ligne suivante (entre dans les fonctions)
-
-finish  
-> Continue jusqu’à la fin de la fonction actuelle
+**Extensions essentielles** :
+- **GEF** (GDB Enhanced Features)
+- **PEDA** (Python Exploit Development Assistance)
+- **pwndbg** (Exploit development)
 
 ---
 
-## 🎯 3. Breakpoints
+## 1️⃣ Commandes de Base
 
-break *0xADDRESS  
-> Met un breakpoint à une adresse mémoire
+### Lancement et chargement
 
-break fonction  
-> Breakpoint à l'entrée d'une fonction
+```bash
+# Lancer GDB avec un binaire
+gdb ./binary
 
-break ligne
-> Breakpoint à une ligne du code
+# Avec arguments
+gdb --args ./binary arg1 arg2
 
-info breakpoints  
-> Liste des breakpoints
+# Attacher à un processus en cours
+gdb -p <PID>
 
-delete NUM  
-> Supprime un breakpoint
+# Charger un core dump
+gdb ./binary core
 
-disable/enable NUM  
-> Désactive/réactive un breakpoint
+# Mode quiet (sans banner)
+gdb -q ./binary
 
----
+# Exécuter des commandes au lancement
+gdb -ex "break main" -ex "run" ./binary
+```
 
-## 🧠 4. Inspection mémoire & registres
+### Exécution
 
-info registers  
-> Affiche les registres
+```gdb
+run                     # Lancer le programme
+r                       # Raccourci
+run < input.txt         # Avec stdin
+run arg1 arg2           # Avec arguments
 
-x/32x $esp  
-> Affiche 32 cases mémoire en hex à partir de ESP
+start                   # Lancer et break au début
+continue                # Continuer l'exécution
+c                       # Raccourci
 
-x/s $esp  
-> Affiche la chaîne de caractères pointée par ESP
+step                    # Exécuter une instruction (entre dans les fonctions)
+s                       # Raccourci
 
-x/20i $eip  
-> Affiche les instructions (désassemblage)
+next                    # Exécuter une instruction (saute les fonctions)
+n                       # Raccourci
 
-x/10xw 0xADDR  
-> Affiche 10 words en hex depuis une adresse
-
-display $eax  
-> Affiche en permanence la valeur du registre EAX
-
----
-
-## 🧪 5. Fuzzing / Payloads
-
-set args $(python3 -c "print('A'*100)")  
-> Injecte une payload dans les arguments
-
-run  
-> Lance le binaire avec l'input contrôlé
-
-set $eip = 0xADDR  
-> Écrase le registre EIP (test d'overflow)
+finish                  # Terminer la fonction actuelle
+kill                    # Arrêter le programme
+quit                    # Quitter GDB
+q                       # Raccourci
+```
 
 ---
 
-## 🧰 6. Outils GDB utiles
+## 2️⃣ Breakpoints
 
-### GEF (GDB Enhanced Features)
+### Gestion des breakpoints
 
-Installation :
+```gdb
+# Break sur fonction
+break main
+b main
+break *0x08048484       # Break sur adresse
 
-echo "source ~/gef.py" >> ~/.gdbinit  
-wget -O ~/gef.py https://gef.blah.cat/gef.py  
+# Break conditionnel
+break main if argc == 2
+break *0x08048484 if $eax == 0
 
-Commandes utiles (avec GEF) :
+# Break temporaire (une seule fois)
+tbreak main
 
-context  
-> Affiche registre + stack + code
+# Liste des breakpoints
+info breakpoints
+i b
 
-pattern create 100  
-> Crée un motif pour trouver offset
+# Désactiver/Activer
+disable 1               # Désactiver breakpoint 1
+enable 1                # Activer breakpoint 1
+delete 1                # Supprimer breakpoint 1
+delete                  # Supprimer tous
 
-pattern search 0x41414141  
-> Cherche un motif dans la stack/heap
+# Break sur accès mémoire
+watch *0xbffff7a0       # Break quand la valeur change
+rwatch *0xbffff7a0      # Break en lecture
+awatch *0xbffff7a0      # Break en lecture/écriture
+```
 
-pattern offset 0x41414141  
-> Calcule l’offset exact d’un overflow
+### Breakpoints avancés
 
-### pwndbg
+```gdb
+# Break sur syscall
+catch syscall
+catch syscall read
+catch syscall write
 
-Alternative à GEF :  
-https://github.com/pwndbg/pwndbg
+# Break sur signal
+catch signal SIGSEGV
+
+# Break sur exception C++
+catch throw
+catch catch
+
+# Commands auto après break
+break main
+commands
+  print $eax
+  print $ebx
+  continue
+end
+```
 
 ---
 
-## 🔓 7. Cas typique : Débogage d’un buffer overflow
+## 3️⃣ Examen de la Mémoire
 
-1. Lancer GDB :  
+### Registres
+
+```gdb
+# Afficher tous les registres
+info registers
+i r
+
+# Registres spécifiques
+info registers eax
+i r eax ebx ecx
+
+# Format personnalisé
+print $eax              # Décimal
+print/x $eax            # Hexadécimal
+print/t $eax            # Binaire
+print/c $eax            # Caractère
+
+# Modifier un registre
+set $eax = 0x41414141
+set $rip = 0x400000
+```
+
+**Registres x86**
+```
+eax, ebx, ecx, edx      # Registres généraux 32-bit
+esi, edi                # Index
+ebp                     # Base pointer
+esp                     # Stack pointer
+eip                     # Instruction pointer
+eflags                  # Flags
+```
+
+**Registres x64**
+```
+rax, rbx, rcx, rdx, rsi, rdi, rbp, rsp, rip
+r8, r9, r10, r11, r12, r13, r14, r15
+```
+
+### Mémoire (x/examine)
+
+```gdb
+# Syntaxe : x/[nombre][format][taille] adresse
+# Format : x(hex), d(decimal), s(string), i(instruction)
+# Taille : b(byte), h(halfword), w(word), g(giant 8bytes)
+
+x/20x $esp              # 20 words en hex depuis ESP
+x/20xw $esp             # Idem
+x/20xb $esp             # 20 bytes en hex
+x/20xg $rsp             # 20 giant words (x64)
+
+x/s 0x08048000          # String à cette adresse
+x/20i $eip              # 20 instructions depuis EIP
+x/20i main              # 20 instructions depuis main
+
+# Avec déréférencement
+x/20x *0xbffff7a0       # Contenu pointé
+```
+
+### Recherche en mémoire
+
+```gdb
+# Chercher un pattern
+find 0x08048000, 0x08050000, "password"
+find $esp, $esp+0x1000, 0x41414141
+
+# Chercher "/bin/sh"
+find &system, +9999999, "/bin/sh"
+```
+
+---
+
+## 4️⃣ Stack et Backtrace
+
+### Analyse de la pile
+
+```gdb
+# Backtrace (call stack)
+backtrace
+bt
+bt full                 # Avec variables locales
+
+# Frame spécifique
+frame 0                 # Aller au frame 0
+f 0
+up                      # Frame précédent
+down                    # Frame suivant
+
+# Info sur frame
+info frame
+info args               # Arguments de la fonction
+info locals             # Variables locales
+
+# Afficher la stack
+x/40x $esp              # 40 words depuis ESP
+x/40xg $rsp             # x64
+```
+
+### Stack frame layout
+
+```
+High Address
++------------------+
+|   Arguments      |
++------------------+
+|  Return Address  |  <- EIP sera restauré ici
++------------------+
+|   Saved EBP      |  <- EBP pointe ici
++------------------+
+| Local Variables  |
++------------------+
+|   Buffer         |
++------------------+ <- ESP
+Low Address
+```
+
+---
+
+## 5️⃣ Disassemble et Code
+
+### Désassemblage
+
+```gdb
+# Désassembler une fonction
+disassemble main
+disas main
+
+# Avec opcodes
+disas/r main
+
+# Adresse spécifique
+disas 0x08048484
+disas 0x08048484, 0x080484a0
+
+# Syntaxe Intel vs AT&T
+set disassembly-flavor intel
+set disassembly-flavor att
+
+# Désassemblage continu
+x/20i $eip              # 20 instructions
+display/20i $eip        # À chaque break
+```
+
+### Code source
+
+```gdb
+# Afficher le code source
+list
+l
+list main
+list 10                 # Ligne 10
+list function_name
+
+# Chercher dans le code
+search pattern
+reverse-search pattern
+```
+
+---
+
+## 6️⃣ Exploitation - Buffer Overflow
+
+### Détection de buffer overflow
+
+```gdb
+# 1. Identifier le buffer
+disas vulnerable_function
+info frame
+
+# 2. Calculer l'offset jusqu'à EIP
+# Utiliser pattern de De Bruijn
+
+# Générer pattern (avec pwntools)
+cyclic 200              # Génère pattern de 200 bytes
+
+# Ou avec GEF
+pattern create 200
+
+# 3. Lancer avec le pattern
+run <<< $(python -c 'print("A"*200)')
+
+# 4. Identifier l'offset
+x/wx $esp               # Voir quelle partie du pattern écrase EIP
+pattern offset 0x41414141
+
+# 5. Construire l'exploit
+# offset + new_eip + nop_sled + shellcode
+```
+
+### Exemple pratique
+
+```gdb
+# Buffer overflow classique
 gdb ./vuln
+(gdb) disas main
+(gdb) break *main+50
+(gdb) run <<< $(python -c 'print("A"*100)')
+(gdb) x/40x $esp
+(gdb) info frame
 
-2. Définir les arguments :  
-set args $(python3 -c "print('A'*200)")
+# Identifier EIP écrasé
+(gdb) x/wx $esp+offset
 
-3. Lancer et observer le crash :  
-run  
+# Payload final
+# python -c 'print("A"*72 + "\xef\xbe\xad\xde" + shellcode)'
+```
+
+---
+
+## 7️⃣ Protection Binaires
+
+### Checksec - Vérifier les protections
+
+```gdb
+# Avec GEF
+checksec
+
+# Protections communes :
+# RELRO (Relocation Read-Only)
+# Stack Canary
+# NX (No-eXecute)
+# PIE (Position Independent Executable)
+# FORTIFY
+```
+
+**RELRO**
+```
+Partial RELRO : GOT writable
+Full RELRO    : GOT read-only (difficile à exploiter)
+```
+
+**Stack Canary**
+```gdb
+# Détecter le canary
+x/20x $esp
+# Chercher une valeur qui change entre exécutions
+# Format typique : 0x????????00 (null byte à la fin)
+
+# Bypass canary :
+# 1. Leak du canary via format string
+# 2. Brute force byte par byte
+# 3. Overwrite de variable avant canary
+```
+
+**NX (DEP)**
+```
+NX enabled  : Stack non-exécutable (pas de shellcode direct)
+NX disabled : Stack exécutable (shellcode OK)
+
+Bypass :
+- ROP (Return Oriented Programming)
+- ret2libc
+- ret2plt
+```
+
+**PIE/ASLR**
+```gdb
+# Vérifier ASLR
+cat /proc/sys/kernel/randomize_va_space
+# 0 = Disabled
+# 1 = Partial
+# 2 = Full
+
+# Dans GDB, ASLR est désactivé par défaut
+set disable-randomization on
+set disable-randomization off
+
+# Voir les mappages mémoire
+info proc mappings
+vmmap                   # Avec GEF
+```
+
+---
+
+## 8️⃣ ROP (Return Oriented Programming)
+
+### Recherche de gadgets
+
+```gdb
+# Avec GEF
+ropper
+ropper --search "pop rdi"
+
+# Avec pwntools
+ROPgadget --binary ./binary
+
+# Recherche manuelle
+# Chercher des instructions avant 'ret'
+x/20i fonction
+# Identifier : pop rdi ; ret
+#              pop rsi ; pop r15 ; ret
+```
+
+### Construction de ROP chain
+
+```python
+# Exemple avec pwntools
+from pwn import *
+
+elf = ELF('./binary')
+rop = ROP(elf)
+
+# pop rdi ; ret
+pop_rdi = 0x00400743
+
+# Adresse de /bin/sh
+binsh = next(elf.search(b'/bin/sh'))
+
+# system()
+system_plt = elf.plt['system']
+
+# ROP chain
+payload = b"A" * offset
+payload += p64(pop_rdi)
+payload += p64(binsh)
+payload += p64(system_plt)
+```
+
+### Débogage ROP dans GDB
+
+```gdb
+# 1. Break avant le ret qui lance la ROP chain
+break *main+100
+
+# 2. Examiner la stack
+x/40xg $rsp
+
+# 3. Step instruction par instruction
+si                      # Step instruction
+
+# 4. Vérifier les registres après chaque gadget
 info registers
 
-4. Vérifier EIP / RIP :  
-pattern create 200  
-set args $(pattern_output)  
-run  
-pattern search $eip
-
-5. Remplacer avec un shellcode ou jump :  
-set $eip = 0xdeadbeef  
-run
+# 5. Continue jusqu'au syscall
+catch syscall execve
+```
 
 ---
 
-## 🧹 8. Divers
+## 9️⃣ Format String
 
-info functions  
-> Liste toutes les fonctions
+### Exploitation format string
 
-info files  
-> Montre les segments du binaire (PIE, ASLR, etc.)
+```gdb
+# Vulnérabilité : printf(user_input)
 
-disassemble main  
-> Désassemble la fonction main
+# 1. Identifier la vulnérabilité
+run <<< AAAA%x.%x.%x.%x
 
-vmmap  
-> Affiche la mémoire (nécessite GEF/pwndbg)
+# 2. Trouver l'offset de notre buffer sur la stack
+run <<< AAAA%x.%x.%x.%x.%x.%x
+# Chercher 41414141 (AAAA)
+
+# 3. Leak d'adresses
+# %s pour lire une string
+# %p pour leak des pointeurs
+
+# 4. Write arbitrary
+# %n écrit le nombre de caractères écrits
+run <<< $(python -c 'print("\x04\x96\x04\x08" + "%08x"*4 + "%n")')
+```
+
+### Tests format string dans GDB
+
+```gdb
+# Afficher la stack
+x/40x $esp
+
+# Tester différents formats
+run <<< %x
+run <<< %x.%x.%x
+run <<< %10$x              # 10ème argument
+run <<< %10$s              # String au 10ème argument
+
+# Identifier l'offset
+run <<< AAAA%x.%x.%x.%x.%x.%x.%x.%x
+# Compter jusqu'à voir 41414141
+```
 
 ---
 
-## 📚 Ressources
+## 🔟 Heap Exploitation
 
-- https://github.com/hugsy/gef  
-- https://github.com/pwndbg/pwndbg  
-- https://book.hacktricks.xyz/pentesting-hard/low-level-exploitation/basic-buffer-overflows  
-- https://www.exploit-db.com/
+### Analyse du heap
+
+```gdb
+# Afficher les chunks du heap
+heap chunks
+
+# Avec GEF
+heap chunks
+heap bins               # Fast bins, small bins, etc.
+heap arenas
+
+# Examiner un chunk spécifique
+x/40xg 0x602000         # Adresse du chunk
+
+# Structure d'un chunk :
+# +--------+
+# | Size   |
+# +--------+
+# | Data   |
+# +--------+
+# | Size   | <- Prochaine
+# +--------+
+```
+
+### Use-After-Free
+
+```gdb
+# 1. Break sur malloc
+break malloc
+
+# 2. Noter l'adresse retournée
+continue
+print $rax              # Adresse du chunk alloué
+
+# 3. Break sur free
+break free
+
+# 4. Vérifier que le chunk est libéré
+heap chunks
+
+# 5. Break sur réutilisation
+# Vérifier si on peut contrôler le contenu
+```
+
+### Double Free
+
+```gdb
+# Détecter double free
+break free
+commands
+  backtrace
+  heap chunks
+  continue
+end
+
+# Vérifier fast bins
+heap bins fast
+```
+
+---
+
+## 1️⃣1️⃣ GEF (GDB Enhanced Features)
+
+### Installation
+
+```bash
+bash -c "$(curl -fsSL https://gef.blah.cat/sh)"
+```
+
+### Commandes GEF essentielles
+
+```gdb
+# Context automatique à chaque break
+# Affiche : registers, stack, code, trace
+
+# Recherche de gadgets
+ropper
+ropper --search "pop rdi"
+
+# Pattern De Bruijn
+pattern create 200
+pattern offset 0x41414141
+
+# Checksec
+checksec
+
+# Recherche en mémoire
+search-pattern "/bin/sh"
+search-pattern 0x41414141
+
+# Heap
+heap chunks
+heap bins
+heap arenas
+
+# Vmmap (mappages mémoire)
+vmmap
+vmmap libc
+
+# Telescope (examine avec déréférencement)
+telescope $rsp
+telescope $rsp 40
+
+# Afficher les protections
+canary
+pie
+aslr
+```
+
+---
+
+## 1️⃣2️⃣ PEDA (Python Exploit Development Assistance)
+
+### Installation
+
+```bash
+git clone https://github.com/longld/peda.git ~/peda
+echo "source ~/peda/peda.py" >> ~/.gdbinit
+```
+
+### Commandes PEDA essentielles
+
+```gdb
+# Pattern
+pattern create 200 input.txt
+pattern offset 0x41414141
+
+# Checksec
+checksec
+
+# Recherche
+searchmem "/bin/sh"
+searchmem 0x41414141
+
+# ROPgadget
+ropgadget
+
+# Shellcode
+shellcode generate x86/linux exec
+shellcode generate x64/linux exec
+
+# Examine avec contexte
+context
+context code
+context stack
+context register
+
+# Dumprop
+dumprop
+
+# Elfsymbol
+elfsymbol
+```
+
+---
+
+## 1️⃣3️⃣ Scripts et Automatisation
+
+### .gdbinit personnalisé
+
+```bash
+# ~/.gdbinit
+set disassembly-flavor intel
+set pagination off
+
+# Auto-load GEF
+source ~/gef/gef.py
+
+# Commandes au lancement
+define hook-run
+  echo [+] Starting execution\n
+end
+
+define hook-stop
+  info registers
+  x/10i $pc
+end
+
+# Raccourcis
+define cls
+  shell clear
+end
+```
+
+### Script Python pour GDB
+
+```python
+# exploit.py
+import gdb
+
+class ExploitCommand(gdb.Command):
+    def __init__(self):
+        super(ExploitCommand, self).__init__("exploit", gdb.COMMAND_USER)
+    
+    def invoke(self, arg, from_tty):
+        # Votre logique d'exploitation
+        gdb.execute("break main")
+        gdb.execute("run")
+        
+        # Lire registres
+        rip = gdb.parse_and_eval("$rip")
+        print(f"RIP: {hex(rip)}")
+
+ExploitCommand()
+```
+
+**Charger le script**
+```gdb
+source exploit.py
+exploit
+```
+
+---
+
+## 1️⃣4️⃣ Techniques Avancées
+
+### ret2libc
+
+```gdb
+# 1. Trouver l'adresse de system()
+print system
+p system
+
+# 2. Trouver "/bin/sh" dans libc
+find &system, +9999999, "/bin/sh"
+search-pattern "/bin/sh"
+
+# 3. Construire le payload
+# offset + system_addr + dummy_ret + binsh_addr
+
+# 4. Déboguer
+break *main+100
+run < payload.txt
+x/20xg $rsp
+```
+
+### ret2plt
+
+```gdb
+# 1. Trouver PLT entries
+info functions
+disas 'puts@plt'
+
+# 2. Leak d'adresse avec puts
+# puts(puts@GOT) pour leak l'adresse de puts
+
+# 3. Calculer base libc
+# libc_base = leaked_puts - puts_offset
+
+# 4. Calculer system
+# system_addr = libc_base + system_offset
+```
+
+### SROP (Sigreturn-Oriented Programming)
+
+```gdb
+# Identifier le sigreturn
+disas vulnerable_function
+# Chercher : mov eax, 15 ; syscall (x64)
+
+# Construire fake sigreturn frame
+# RAX = 15 (sigreturn syscall number)
+# RDI = "/bin/sh"
+# RSP = stack_addr
+```
+
+---
+
+## 1️⃣5️⃣ Reverse Engineering
+
+### Analyse de fonctions
+
+```gdb
+# Lister toutes les fonctions
+info functions
+
+# Désassembler une fonction
+disas function_name
+
+# Identifier les calls
+disas main
+# Chercher 'call' instructions
+
+# Tracer les appels de fonction
+break function_name
+commands
+  backtrace
+  continue
+end
+```
+
+### Analyse de strings
+
+```gdb
+# Chercher toutes les strings
+info variables
+maintenance info sections
+
+# Strings dans le binaire
+shell strings ./binary | grep -i "password"
+
+# Références à une string
+find 0x08048000, 0x08050000, "password"
+```
+
+### Anti-debugging
+
+**Détection via ptrace**
+```gdb
+# Le programme check ptrace
+catch syscall ptrace
+
+# Bypass
+break ptrace
+commands
+  set $rax = 0
+  continue
+end
+```
+
+**Détection via /proc/self/status**
+```gdb
+# Check de TracerPid
+catch syscall openat
+commands
+  if $rdi == "/proc/self/status"
+    # Skip ou modifier le retour
+  end
+  continue
+end
+```
+
+---
+
+## 1️⃣6️⃣ Débogage de Malware
+
+### Analyse sécurisée
+
+```bash
+# Lancer dans un environnement isolé (VM)
+# Désactiver le réseau si nécessaire
+
+# Snapshot avant analyse
+gdb ./malware
+```
+
+### Techniques d'analyse
+
+```gdb
+# 1. Break sur syscalls suspects
+catch syscall socket
+catch syscall connect
+catch syscall execve
+catch syscall fork
+
+# 2. Tracer les strings suspectes
+search-pattern "http://"
+search-pattern "cmd.exe"
+search-pattern "/bin/sh"
+
+# 3. Analyser les fonctions cryptographiques
+break EVP_DecryptInit
+break EVP_EncryptInit
+
+# 4. Dumper la mémoire
+dump memory output.bin 0x08048000 0x08050000
+```
+
+### Unpacking
+
+```gdb
+# 1. Identifier le point d'entrée réel
+info files
+entry
+
+# 2. Break sur le vrai EP après unpacking
+# Chercher un jump large ou ret
+
+# 3. Dumper le binaire dépacké
+dump memory unpacked.bin start_addr end_addr
+```
+
+---
+
+## 1️⃣7️⃣ Cheatsheet Rapide
+
+### Exploitation basique
+
+```gdb
+# Setup
+gdb ./binary
+set disassembly-flavor intel
+checksec
+
+# Analyse
+disas main
+info functions
+info variables
+
+# Buffer Overflow
+pattern create 200
+run <<< $(python -c 'print("A"*200)')
+pattern offset $eip
+
+# Examine
+x/40x $esp
+x/20i $eip
+info registers
+
+# Breakpoints
+break main
+break *0x08048484
+watch *0xbffff7a0
+
+# Exploitation
+set $eip = 0xdeadbeef
+jump *0x08048484
+```
+
+### Commandes essentielles
+
+```gdb
+r           # run
+c           # continue
+s           # step
+n           # next
+si          # step instruction
+ni          # next instruction
+bt          # backtrace
+i r         # info registers
+x/20x $esp  # examine stack
+disas main  # disassemble
+q           # quit
+```
+
+---
+
+## 1️⃣8️⃣ Ressources
+
+### Documentation
+- GDB Manual : https://sourceware.org/gdb/documentation/
+- GEF Documentation : https://hugsy.github.io/gef/
+- PEDA : https://github.com/longld/peda
+
+### Livres
+- "The Shellcoder's Handbook"
+- "Hacking: The Art of Exploitation"
+- "Practical Binary Analysis"
+
+### Labs
+- pwnable.kr
+- pwnable.tw
+- ROP Emporium
+- exploit.education
+
+---
+
+## 💡 Tips Pro
+
+1. **Toujours utiliser GEF ou PEDA** pour contexte automatique
+2. **set disassembly-flavor intel** pour lisibilité
+3. **Pattern De Bruijn** pour calculer offsets rapidement
+4. **checksec** en premier pour identifier les protections
+5. **vmmap** pour voir les mappages mémoire et ASLR
+6. **telescope** pour examiner avec déréférencement
+7. **catch syscall** pour tracer les appels système
+8. **Désactiver ASLR** dans GDB pour tests reproductibles
+9. **Utiliser pwntools** avec GDB pour automation
+10. **Sauvegarder les commandes** dans .gdbinit
+
+---
+
+**🐛 GDB est l'outil indispensable pour le pwn et le reverse engineering Linux !**

