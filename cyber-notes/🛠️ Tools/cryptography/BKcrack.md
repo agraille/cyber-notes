@@ -1,156 +1,658 @@
-🔑 BKCrack – Cheatsheet Cyber Sécurité
+# 🔑 BKCrack - Cheatsheet Cyber Sécurité
 
-Attaque par plaintext connu contre ZipCrypto
+Guide orienté **cryptanalyse de ZIP** et **attaque par plaintext connu** contre ZipCrypto. Focus sur l'exploitation et le décryptage d'archives chiffrées.
 
-BKCrack est un outil permettant de récupérer les clés internes ZipCrypto d’un fichier ZIP chiffré, en s'appuyant sur une portion connue du contenu.
-Une fois les clés obtenues, il est possible de décrypter tous les fichiers de l’archive sans connaître le mot de passe.
+---
 
-1️⃣ Quand utiliser BKCrack ?
+## 📖 Qu'est-ce que BKCrack ?
 
-Utilise BKCrack UNIQUEMENT si ces conditions sont réunies :
+**BKCrack** est un outil de cryptanalyse permettant de **casser le chiffrement ZipCrypto** des archives ZIP en exploitant une faiblesse du protocole.
 
-✔ Le ZIP utilise ZipCrypto
+**Principe** : Attaque par **plaintext connu** (known-plaintext attack)
 
-Pas AES.
-Vérifier avec :
+**Objectif** : Récupérer les clés internes du chiffrement pour décrypter **tous les fichiers** de l'archive sans connaître le mot de passe.
 
+**Temps d'attaque** : Quelques secondes à quelques minutes selon la complexité
+
+---
+
+## 1️⃣ Conditions Préalables
+
+### Vérifications obligatoires
+
+```bash
+# ✅ 1. Le ZIP doit utiliser ZipCrypto (pas AES)
 zipinfo archive.zip
 
+# Output attendu :
+# Encryption method: ZipCrypto
+# ❌ Si AES-128 ou AES-256 → BKCrack NE FONCTIONNE PAS
+```
 
-→ doit afficher ZipCrypto
+**Critères d'utilisation** :
+```
+✅ Chiffrement ZipCrypto (pas AES)
+✅ ≥ 8 octets de plaintext connus et contigus
+✅ Accès au fichier chiffré complet
+✅ Connaissance d'une partie du contenu
+```
 
-✔ Tu connais une partie du contenu d’un fichier
+### Quand utiliser BKCrack ?
 
-Exemples courants :
+**Scénarios valides** :
+- ZIP avec mot de passe inconnu
+- Backup chiffré dont on connaît le type de fichiers
+- CTF avec indices sur le contenu
+- Archive contenant des fichiers avec signatures connues
+- Forensique sur archives chiffrées
 
-Signature JPEG : FF D8 FF E0
+**Ne fonctionne PAS pour** :
+- ZIP avec AES-128/256
+- Aucun plaintext connu
+- Plaintext < 8 bytes
+- Plaintext non contigu
 
-Signature PNG : 89 50 4E 47
+---
 
-Signature PDF : %PDF-
+## 2️⃣ Reconnaissance
 
-Un fichier texte dont on connaît le début
+### Analyser l'archive
 
-Une image non compressée (Store), mais même Deflate marche si le plaintext est contigu
-
-✔ Le fichier contient ≥ 8 octets de plaintext contigus
-
-BKCrack nécessite 8 bytes minimum.
-
-✔ Objectif :
-
-Décrypter tout un ZIP
-
-Contourner un mot de passe inconnu
-
-Extraire des données sans bruteforce
-
-2️⃣ Commandes essentielles de BKCrack
-🔍 2.1 Lister le contenu du ZIP
+```bash
+# Lister le contenu détaillé
 bkcrack -L archive.zip
 
+# Ou avec zipinfo
+zipinfo -v archive.zip
 
-Affiche :
+# Ou avec 7z
+7z l -slt archive.zip
+```
 
-Index
+**Informations importantes** :
+```
+Index          : Position du fichier dans l'archive
+Encryption     : ZipCrypto, AES-128, AES-256
+Compression    : Store (meilleur), Deflate
+Size           : Taille non compressée
+Packed Size    : Taille compressée
+CRC-32         : Checksum (utile pour validation)
+```
 
-Méthode de chiffrement
+### Identifier le meilleur fichier cible
 
-Compression
+**Critères de sélection** :
+```
+1. Compression Store (non compressé) = IDÉAL
+2. Taille importante (plus de données = plus facile)
+3. Type de fichier avec signature connue
+4. Fichier dont vous connaissez le début
+```
 
-CRC
+**Exemple d'output** :
+```
+Index 0:
+  Name: portrait.jpg
+  Encryption: ZipCrypto Deflate
+  Packed Size: 245678
+  Uncompressed Size: 512000
+  CRC-32: 0x1a2b3c4d
+  
+Index 1:
+  Name: flag.txt
+  Encryption: ZipCrypto Store  ← MEILLEUR CANDIDAT
+  Packed Size: 45
+  Uncompressed Size: 45
+  CRC-32: 0xabcdef12
+```
 
-Taille
-→ Permet d’identifier le fichier à utiliser pour l’attaque.
+---
 
-🧱 2.2 Attaque par plaintext connu (core feature)
-1) Créer un fichier contenant les bytes connus
+## 3️⃣ Préparation du Plaintext
 
-Exemple JPEG :
+### Signatures de fichiers communes
 
-printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01" > plain.jpg  
+**Images**
+```bash
+# JPEG (FF D8 FF E0)
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01" > plain.jpg
 
-2) Lancer BKCrack pour récupérer les clés
+# PNG (89 50 4E 47)
+printf "\x89\x50\x4E\x47\x0D\x0A\x1A\x0A" > plain.png
+
+# GIF (47 49 46 38)
+printf "\x47\x49\x46\x38\x39\x61" > plain.gif
+
+# BMP (42 4D)
+printf "\x42\x4D" > plain.bmp
+```
+
+**Documents**
+```bash
+# PDF (%PDF-)
+printf "%%PDF-1.4\n" > plain.pdf
+
+# ZIP (50 4B 03 04)
+printf "\x50\x4B\x03\x04" > plain.zip
+
+# RAR (52 61 72 21)
+printf "\x52\x61\x72\x21\x1A\x07" > plain.rar
+```
+
+**Texte**
+```bash
+# Si vous connaissez le début du fichier
+echo "Dear Sir or Madam," > plain.txt
+
+# Headers HTTP
+printf "HTTP/1.1 200 OK\r\n" > plain.txt
+
+# HTML
+printf "<!DOCTYPE html>\n<html>\n<head>" > plain.html
+```
+
+**Exécutables**
+```bash
+# EXE Windows (4D 5A)
+printf "\x4D\x5A" > plain.exe
+
+# ELF Linux (7F 45 4C 46)
+printf "\x7F\x45\x4C\x46" > plain.elf
+
+# Mach-O macOS (CF FA ED FE)
+printf "\xCF\xFA\xED\xFE" > plain.macho
+```
+
+### Créer plaintext depuis fichier similaire
+
+```bash
+# Si vous avez un fichier similaire non chiffré
+# Exemple : une autre photo du même appareil
+
+# Extraire les premiers bytes
+dd if=reference.jpg of=plain.jpg bs=1 count=1024
+
+# Ou avec head
+head -c 1024 reference.jpg > plain.jpg
+```
+
+---
+
+## 4️⃣ Attaque et Récupération des Clés
+
+### Attaque basique
+
+```bash
+# Attaque avec plaintext connu
 bkcrack -C archive.zip -c fichier_chiffre -p fichier_plain
 
-
-Exemple :
-
+# Exemple concret
 bkcrack -C santa-secret-memes.zip -c portrait.jpg -p plain.jpg
+```
 
+**Output attendu** :
+```
+[INFO] Processing cipher file portrait.jpg...
+[INFO] Keys recovered:
+  key0: 4c0a34dd
+  key1: 9f68579b
+  key2: 9fd87f2f
+[INFO] Done in 15.3 seconds
+```
 
-Si BKCrack réussit, il retourne :
+### Attaque avec offset
 
-Keys: <key0> <key1> <key2>
+```bash
+# Si le plaintext ne commence pas au début du fichier
+bkcrack -C archive.zip -c fichier_chiffre -p fichier_plain -o OFFSET
 
-🔓 2.3 Déchiffrer un seul fichier
-bkcrack -C archive.zip -c fichier_chiffre -k key0 key1 key2 -d fichier_dechiffre
+# Exemple : plaintext à partir du byte 100
+bkcrack -C archive.zip -c portrait.jpg -p plain.jpg -o 100
+```
 
+### Attaque par index
 
-Exemple :
+```bash
+# Attaquer directement par index (plus rapide)
+bkcrack -C archive.zip -c 0 -p plain.jpg
 
-bkcrack -C archive.zip -c portrait.jpg -k 4c0a34dd 9f68579b 9fd87f2f -d portrait_dec.zip
+# Index 0 = premier fichier de l'archive
+```
 
-📦 2.4 Déchiffrer tous les fichiers de l’archive
+### Continuer une attaque interrompue
 
-Tu dois le faire pour chaque index du ZIP.
+```bash
+# Si l'attaque est interrompue, BKCrack affiche :
+# "You can resume the attack with: bkcrack --continue-attack 12345678"
 
-Forme générique :
+bkcrack --continue-attack 12345678
+```
 
-bkcrack -C archive.zip -c <index> -k key0 key1 key2 -d output.zip
+---
 
-▶️ 2.5 Continuer une attaque interrompue
-bkcrack --continue-attack <position>
+## 5️⃣ Décryptage des Fichiers
 
+### Décrypter un seul fichier
 
-Affiché automatiquement si l’attaque a été stoppée.
+```bash
+# Avec les clés récupérées
+bkcrack -C archive.zip -c fichier_chiffre -k key0 key1 key2 -d output.zip
 
-3️⃣ Workflow standard (résumé)
+# Exemple
+bkcrack -C santa-secret-memes.zip -c portrait.jpg -k 4c0a34dd 9f68579b 9fd87f2f -d portrait_dec.zip
+```
 
-Analyse du ZIP
+### Décrypter tous les fichiers
 
+```bash
+# Pour chaque fichier de l'archive
+bkcrack -C archive.zip -c 0 -k 4c0a34dd 9f68579b 9fd87f2f -d file0.zip
+bkcrack -C archive.zip -c 1 -k 4c0a34dd 9f68579b 9fd87f2f -d file1.zip
+bkcrack -C archive.zip -c 2 -k 4c0a34dd 9f68579b 9fd87f2f -d file2.zip
+```
+
+**Script d'automatisation** :
+```bash
+#!/bin/bash
+# decrypt-all.sh
+
+ARCHIVE="santa-secret-memes.zip"
+KEYS="4c0a34dd 9f68579b 9fd87f2f"
+
+# Obtenir le nombre de fichiers
+COUNT=$(bkcrack -L $ARCHIVE | grep -c "Index")
+
+# Décrypter chaque fichier
+for i in $(seq 0 $((COUNT-1))); do
+    echo "[*] Decrypting index $i..."
+    bkcrack -C $ARCHIVE -c $i -k $KEYS -d decrypted_$i.zip
+done
+
+echo "[+] All files decrypted!"
+```
+
+---
+
+## 6️⃣ Décompression Post-Décryptage
+
+### Problème : Fichiers encore compressés (Deflate)
+
+```bash
+# Après décryptage, les fichiers peuvent être compressés
+# Il faut les décompresser
+
+# Avec 7z
+7z x decrypted_0.zip -so > final_file.jpg
+
+# Avec unzip
+unzip -p decrypted_0.zip > final_file.jpg
+
+# Avec Python
+python3 -c "import zipfile; z=zipfile.ZipFile('decrypted_0.zip'); print(z.read(z.namelist()[0]).decode(), end='')" > final_file.txt
+```
+
+### Script complet de décryptage + décompression
+
+```bash
+#!/bin/bash
+# full-decrypt.sh
+
+ARCHIVE="archive.zip"
+KEYS="4c0a34dd 9f68579b 9fd87f2f"
+
+# Lister les fichiers
+bkcrack -L $ARCHIVE | grep "Name:" | cut -d: -f2 | while read -r filename; do
+    index=$(bkcrack -L $ARCHIVE | grep -B5 "Name: $filename" | grep "Index" | awk '{print $2}')
+    
+    echo "[*] Processing: $filename (index $index)"
+    
+    # Décrypter
+    bkcrack -C $ARCHIVE -c $index -k $KEYS -d temp_$index.zip
+    
+    # Décompresser
+    7z x temp_$index.zip -so > "$filename"
+    
+    # Nettoyer
+    rm temp_$index.zip
+    
+    echo "[+] Saved: $filename"
+done
+```
+
+---
+
+## 7️⃣ Cas Pratiques CTF
+
+### Scénario 1 : Archive avec JPEG
+
+```bash
+# 1. Analyser l'archive
+bkcrack -L challenge.zip
+
+# Output :
+# Index 0: secret.jpg (ZipCrypto Deflate)
+
+# 2. Créer plaintext JPEG
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01" > plain.jpg
+
+# 3. Récupérer les clés
+bkcrack -C challenge.zip -c secret.jpg -p plain.jpg
+
+# Output :
+# Keys: 12ab34cd 56ef78ab 9cdef012
+
+# 4. Décrypter
+bkcrack -C challenge.zip -c 0 -k 12ab34cd 56ef78ab 9cdef012 -d decrypted.zip
+
+# 5. Décompresser
+7z x decrypted.zip -so > secret.jpg
+
+# 6. Ouvrir l'image
+xdg-open secret.jpg
+```
+
+### Scénario 2 : Archive multi-fichiers
+
+```bash
+# 1. Analyser
+bkcrack -L archive.zip
+# Index 0: flag.txt
+# Index 1: image.png
+# Index 2: document.pdf
+
+# 2. Créer plaintext pour flag.txt (on connaît le format)
+echo "FLAG{" > plain.txt
+
+# 3. Attaquer
+bkcrack -C archive.zip -c flag.txt -p plain.txt
+
+# 4. Décrypter tous les fichiers avec le script
+./decrypt-all.sh
+
+# 5. Vérifier les flags
+grep -r "FLAG{" .
+```
+
+### Scénario 3 : Steganographie + BKCrack
+
+```bash
+# Challenge : ZIP chiffré contenant image avec stéganographie
+
+# 1. BKCrack pour décrypter
+bkcrack -C stego.zip -c hidden.png -p plain.png
+bkcrack -C stego.zip -c 0 -k KEYS -d decrypted.zip
+7z x decrypted.zip -so > hidden.png
+
+# 2. Steghide pour extraire
+steghide extract -sf hidden.png -p password_from_hint
+
+# 3. Lire le flag
+cat secret.txt
+```
+
+---
+
+## 8️⃣ Techniques Avancées
+
+### Attaque sans plaintext complet
+
+```bash
+# Si vous connaissez seulement quelques bytes
+
+# Créer plaintext partiel (minimum 8 bytes contigus)
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46" > partial.jpg
+
+# Tenter l'attaque
+bkcrack -C archive.zip -c image.jpg -p partial.jpg
+
+# Si échec, essayer avec plus de bytes
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01\x01\x00\x00\x01" > partial.jpg
+bkcrack -C archive.zip -c image.jpg -p partial.jpg
+```
+
+### Bruteforce du plaintext
+
+```bash
+# Si vous ne connaissez pas exactement le plaintext
+# Tester plusieurs signatures
+
+for sig in jpeg png gif bmp; do
+    echo "[*] Testing $sig signature..."
+    bkcrack -C archive.zip -c unknown.dat -p plain_$sig.dat
+    if [ $? -eq 0 ]; then
+        echo "[+] Success with $sig!"
+        break
+    fi
+done
+```
+
+### Récupération du mot de passe
+
+```bash
+# BKCrack peut aussi essayer de récupérer le mot de passe original
+
+# Après avoir récupéré les clés
+bkcrack -k key0 key1 key2 --bruteforce
+
+# Ou avec un dictionnaire
+bkcrack -k key0 key1 key2 --bruteforce -w wordlist.txt
+
+# Attention : Très lent, les clés suffisent généralement
+```
+
+---
+
+## 9️⃣ Optimisation et Performance
+
+### Accélérer l'attaque
+
+```bash
+# Utiliser plusieurs threads
+bkcrack -C archive.zip -c file.jpg -p plain.jpg -t 8
+
+# Limiter la recherche (si vous connaissez des contraintes)
+bkcrack -C archive.zip -c file.jpg -p plain.jpg --extra 0
+
+# Verbose pour suivre la progression
+bkcrack -C archive.zip -c file.jpg -p plain.jpg -v
+```
+
+### Réduire la taille du plaintext
+
+```bash
+# Plus le plaintext est long, plus c'est rapide
+# Mais minimum 8 bytes requis
+
+# 12 bytes = bon compromis
+dd if=reference.jpg of=plain.jpg bs=1 count=12
+
+# 1024 bytes = attaque quasi instantanée
+dd if=reference.jpg of=plain.jpg bs=1 count=1024
+```
+
+---
+
+## 🔟 Détection et Contre-Mesures
+
+### Détecter ZipCrypto (vulnérable)
+
+```bash
+# Vérifier le type de chiffrement
+zipinfo archive.zip | grep -i "encryption"
+
+# ZipCrypto = VULNÉRABLE à BKCrack
+# AES-128/256 = SÉCURISÉ
+```
+
+### Protection contre BKCrack
+
+**Pour les créateurs d'archives** :
+```bash
+# ❌ Éviter ZipCrypto
+zip -e archive.zip files/*
+
+# ✅ Utiliser AES-256
+7z a -tzip -p -mem=AES256 secure_archive.zip files/*
+
+# Ou avec AES-128
+zip -e -P password --encryption-method AES128 archive.zip files/*
+```
+
+**Bonnes pratiques** :
+```
+1. ✅ Utiliser AES-256 au lieu de ZipCrypto
+2. ✅ Mot de passe fort (>12 caractères)
+3. ✅ Éviter d'inclure des fichiers avec signatures connues
+4. ✅ Ajouter du padding aléatoire aux fichiers
+5. ✅ Utiliser 7z avec AES au lieu de ZIP standard
+```
+
+---
+
+## 1️⃣1️⃣ Dépannage
+
+### Erreurs courantes
+
+**"Not enough known plaintext"**
+```bash
+# Solution : Augmenter la taille du plaintext
+# Minimum 8 bytes, recommandé 12+ bytes
+
+# Créer plaintext plus long
+dd if=reference.jpg of=plain.jpg bs=1 count=20
+```
+
+**"Could not find the keys"**
+```bash
+# Causes possibles :
+# 1. Plaintext incorrect
+# 2. Offset incorrect
+# 3. Archive utilise AES (pas ZipCrypto)
+
+# Vérifications :
+zipinfo -v archive.zip
+file plain.jpg
+hexdump -C plain.jpg | head
+```
+
+**"Invalid keys"**
+```bash
+# Les clés ne fonctionnent pas pour ce fichier
+# Solution : Réessayer l'attaque avec plus de plaintext
+```
+
+---
+
+## 1️⃣2️⃣ Workflow Complet
+
+### Méthodologie standard
+
+```bash
+# 1. RECONNAISSANCE
+bkcrack -L archive.zip
+zipinfo -v archive.zip
+
+# 2. IDENTIFIER TYPE DE FICHIER
+file archive.zip
+# Vérifier : ZipCrypto (pas AES)
+
+# 3. CHOISIR CIBLE
+# Chercher fichier Store ou avec signature connue
+
+# 4. CRÉER PLAINTEXT
+printf "\xFF\xD8\xFF\xE0\x00\x10\x4A\x46\x49\x46\x00\x01" > plain.jpg
+
+# 5. ATTAQUE
+bkcrack -C archive.zip -c target.jpg -p plain.jpg
+
+# 6. NOTER LES CLÉS
+# Keys: key0 key1 key2
+
+# 7. DÉCRYPTER TOUS LES FICHIERS
+for i in {0..N}; do
+    bkcrack -C archive.zip -c $i -k key0 key1 key2 -d file_$i.zip
+    7z x file_$i.zip -so > final_$i.ext
+done
+
+# 8. VÉRIFICATION
+ls -lah final_*
+```
+
+---
+
+## 1️⃣3️⃣ Cheatsheet Rapide
+
+### Commandes essentielles
+
+```bash
+# Analyse
 bkcrack -L archive.zip
 
+# Attaque
+bkcrack -C archive.zip -c file.jpg -p plain.jpg
 
-Choisir un fichier qui contient un début connu
-(ex : JPG, PNG…)
+# Décryptage
+bkcrack -C archive.zip -c 0 -k KEY0 KEY1 KEY2 -d output.zip
 
-Créer le plaintext
+# Décompression
+7z x output.zip -so > final.jpg
 
-printf "\xFF\xD8\xFF\xE0" > plain.jpg
+# Continuer
+bkcrack --continue-attack POSITION
+```
 
+### Signatures courantes
 
-Récupérer les clés
+```bash
+# JPEG
+\xFF\xD8\xFF\xE0
 
-bkcrack -C archive.zip -c portrait.jpg -p plain.jpg
+# PNG  
+\x89\x50\x4E\x47
 
+# PDF
+%PDF-
 
-Décrypter les fichiers
+# ZIP
+\x50\x4B\x03\x04
 
-bkcrack -C archive.zip -c 0 -k <keys> -d file0.zip
-bkcrack -C archive.zip -c 1 -k <keys> -d file1.zip
-...
+# EXE
+\x4D\x5A
+```
 
+---
 
-Décompresser les flux Deflate
-(souvent requis pour les JPG)
+## 1️⃣4️⃣ Ressources
 
-7z x file0.jpg -so > final_file0.jpg
+### Documentation
+- GitHub : https://github.com/kimci86/bkcrack
+- Paper original : Biham & Kocher (1994)
 
-4️⃣ Ce que BKCrack ne fait pas
+### Outils complémentaires
+- fcrackzip : Brute force ZIP
+- John the Ripper : Cracking multi-format
+- pkcrack : Ancien outil (BKCrack est meilleur)
 
-Ne cracke pas les ZIP AES
+### CTF et Labs
+- Root-Me : Steganography challenges
+- HackTheBox : Forensics challenges
+- TryHackMe : Crypto rooms
 
-Ne devine pas les mots de passe
+---
 
-Ne décompresse pas automatiquement les fichiers Deflate
+## 💡 Tips Pro
 
-Ne fonctionne pas si tu n'as aucun plaintext connu
+1. **Toujours vérifier ZipCrypto** avant d'utiliser BKCrack
+2. **12+ bytes de plaintext** pour attaque rapide
+3. **Store > Deflate** pour facilité
+4. **Signatures de fichiers** = plaintext facile
+5. **Script d'automatisation** pour archives multi-fichiers
+6. **7z pour décompresser** après décryptage
+7. **Hexdump** pour vérifier le plaintext
+8. **Threads multiples** pour performance
+9. **CTF : chercher indices** dans la description
+10. **AES = immune** à BKCrack
 
-5️⃣ Indices pour choisir un bon fichier plaintext
+---
 
-✔ Taille non compressée élevée
-✔ Compression Store (non compressé) = idéal
-✔ Fichier commençant par une signature connue
-✔ CRC32 indiqué dans le ZIP
-✔ Le plaintext doit être contigu
+**🔑 BKCrack est l'outil ultime pour casser le chiffrement ZipCrypto. Rapide, efficace et redoutable contre les archives mal protégées !**

