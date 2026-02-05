@@ -6,20 +6,6 @@ Guide exhaustif pour l'exploitation avancée des injections SQL avec SQLMap.
 
 ## 📖 Concepts de Base
 
-### Installation
-
-```bash
-# Cloner le repo (version la plus récente)
-git clone --depth 1 https://github.com/sqlmapproject/sqlmap.git
-cd sqlmap
-python sqlmap.py
-
-# Ou via apt
-apt install sqlmap
-```
-
----
-
 ## 1️⃣ Utilisation Basique
 
 ### Détection simple
