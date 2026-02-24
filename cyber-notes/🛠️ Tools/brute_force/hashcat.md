@@ -4,6 +4,9 @@ Guide orienté **cracking de hash** et **password recovery** avec Hashcat. Focus
 
 ---
 
+<!-- HASHID POUR CHECK LE HASH -->
+
+
 ## 📖 Qu'est-ce que Hashcat ?
 
 **Hashcat** est le cracker de mots de passe le plus rapide au monde utilisant la puissance du **GPU**.

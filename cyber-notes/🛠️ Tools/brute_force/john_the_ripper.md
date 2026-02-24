@@ -4,6 +4,8 @@ Guide orienté **cracking de hash** et **password recovery** avec John the Rippe
 
 ---
 
+<!-- HASHID POUR CHECK LE HASH -->
+
 ## 📖 Qu'est-ce que John the Ripper ?
 
 **John the Ripper** (John ou JtR) est un cracker de mots de passe open-source ultra-performant.
