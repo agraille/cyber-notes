@@ -9,6 +9,10 @@ L'ordre de recherche de sys.path en Python :
 Le répertoire du script lui-même (exemple: ici /opt/backup_tool/)
 Les variables d'environnement PYTHONPATH
 Les dossiers standards (/usr/lib/python3/...)
+
+Check:
+	python3 --version
+	python3 -c "import sys; print(sys.path)"
 -->
 
 ```
