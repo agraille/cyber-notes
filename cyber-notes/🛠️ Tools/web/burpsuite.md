@@ -8,6 +8,8 @@ Guide orienté **exploitation** et **pentesting** avec Burp Suite. Focus sur les
 
 ### Interception de base
 ```
+
+Before config proxy port manual on browser
 Proxy > Intercept > Intercept is on
 - Ctrl+F : Forward
 - Ctrl+D : Drop
