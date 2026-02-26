@@ -2,6 +2,15 @@
 
 ## 🔧 Lancement de serveurs
 
+<!--
+Notes: Les modules python sont d'abord appele la ou le script est execute 
+L'ordre de recherche de sys.path en Python :
+
+Le répertoire du script lui-même (exemple: ici /opt/backup_tool/)
+Les variables d'environnement PYTHONPATH
+Les dossiers standards (/usr/lib/python3/...)
+-->
+
 ```
 python3 -m http.server 8000  
 ```
