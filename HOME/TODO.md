@@ -6,6 +6,6 @@ wpscan
 pspy
 
 
-getcap /usr/bin/* /usr/sbin/* 2>/dev/null
+getcap /usr/bin/* /usr/sbin/* 2>/dev/null / ficher sur les capabilities strace et ltrace
 
-exploit socket nc -U path socket + input uid etc 
+exploit socket / cmd utiliser socket = nc -U path socket + input uid etc 
