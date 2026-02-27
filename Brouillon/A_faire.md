@@ -1,4 +1,0 @@
-install seclist
-
-whatweb
-wpscan
