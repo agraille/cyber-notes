@@ -20,12 +20,12 @@ Un **hash** est une empreinte numérique de taille fixe générée à partir d'u
 
 ### Différence Hash / Chiffrement / Encodage
 
-| Type | Réversible | Clé | Exemple |
-|------|-----------|-----|---------|
-| **Hash** | ❌ Non | Non | SHA256, MD5 |
-| **Chiffrement symétrique** | ✅ Oui | Même clé | AES, DES |
-| **Chiffrement asymétrique** | ✅ Oui | Clé pub/priv | RSA, ECC |
-| **Encodage** | ✅ Oui | Non | Base64, Hex, UTF-8 |
+| Type                        | Réversible | Clé           Exemple      |
+|-----------------------------|------------|--------------|-------------|
+| **Hash**                    | ❌ Non     | Non          | SHA256, MD5 |
+| **Chiffrement symétrique**  | ✅ Oui     | Même clé     | AES, DES    |
+| **Chiffrement asymétrique** | ✅ Oui     | Clé pub/priv | RSA, ECC    |
+| **Encodage**                | ✅ Oui     | Non          | Base64, Hex, UTF-8 |
 
 > ⚠️ Base64 **n'est pas du chiffrement** — c'est juste une représentation de bytes en ASCII
 
