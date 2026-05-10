@@ -150,9 +150,9 @@ john pdf.hash
 ### SSH
 
 ```bash
-# SSH private key
+# SSH private key appliquer un hash pour chercher le mot de passe dedans dans un format que john connait 
 ssh2john id_rsa > ssh.hash
-john ssh.hash
+john ssh.hash #sur wordlist rockyou par exemple pour recuperer la passphrase ou le mot de passe d'une clef prive 
 ```
 
 ---

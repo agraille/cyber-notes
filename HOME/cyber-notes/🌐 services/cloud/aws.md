@@ -194,6 +194,23 @@ aws s3api get-bucket-location --bucket bucket-name
 aws s3api get-bucket-versioning --bucket bucket-name
 # Si activé → accès aux anciennes versions de fichiers
 aws s3api list-object-versions --bucket bucket-name
+
+# Toujours passer --endpoint-url pour un S3 fake/local ou si on trouve les identifiant pour le aws configure 
+
+# EXEMPLE DE CTF HTB:
+aws s3 ls --endpoint-url http://facts.htb:54321
+aws s3 ls s3://randomfacts --endpoint-url http://facts.htb:54321
+
+# Lister le contenu d'un bucket
+aws s3 ls s3://internal --endpoint-url http://facts.htb:54321
+aws s3 ls s3://randomfacts --endpoint-url http://facts.htb:54321
+
+# Télécharger tout le bucket
+aws s3 sync s3://randomfacts ./ --endpoint-url http://facts.htb:54321
+aws s3 sync s3://internal ./ --endpoint-url http://facts.htb:54321
+
+# Récupérer un fichier précis
+aws s3 cp s3://randomfacts/fichier.txt ./ --endpoint-url http://facts.htb:54321
 ```
 
 ---
