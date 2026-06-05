@@ -25,3 +25,7 @@ bash/tmp/chisel client 10.10.16.105:9001 R:8888:127.0.0.1:8888
 5. Tu devrais voir sur ton serveur chisel
 2026/06/03 23:49:xx server: session#1: Connected
 Et ensuite accède à la cible sur le bon port
+
+
+
+view-source:URL
