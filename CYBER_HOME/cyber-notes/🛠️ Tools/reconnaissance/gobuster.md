@@ -1,0 +1,670 @@
+# 🔍 Gobuster - Cheatsheet Cyber Sécurité
+
+Guide orienté **énumération web** et **reconnaissance** avec Gobuster. Focus sur la découverte de ressources cachées et l'exploration exhaustive.
+
+---
+
+## 📖 Qu'est-ce que Gobuster ?
+
+**Gobuster** est un outil d'énumération web écrit en Go permettant de :
+- Bruteforce de directories et fichiers
+- Énumération de sous-domaines (DNS)
+- Découverte de virtual hosts
+- Énumération de buckets S3
+- Énumération de TFTP
+- Énumération de Google Cloud Storage
+
+**Avantages** :
+- Rapide (Go)
+- Simple d'utilisation
+- Multi-modes (dir, dns, vhost, s3)
+- Support HTTP/2
+
+---
+
+## 1️⃣ Mode DIR - Directory Busting
+
+### Scan basique
+
+```bash
+# Scan simple
+gobuster dir -u http://target.com -w /usr/share/wordlists/dirb/common.txt
+
+# Avec extensions
+gobuster dir -u http://target.com -w wordlist.txt -x php,html,txt,js
+
+# Multiple extensions
+gobuster dir -u http://target.com -w wordlist.txt -x php,php3,php4,php5,phtml,html,htm
+```
+
+### Options essentielles
+
+```bash
+# Threads
+gobuster dir -u http://target.com -w wordlist.txt -t 50
+
+# Timeout
+gobuster dir -u http://target.com -w wordlist.txt --timeout 10s
+
+# User-Agent
+gobuster dir -u http://target.com -w wordlist.txt -a "Mozilla/5.0"
+
+# Random User-Agent
+gobuster dir -u http://target.com -w wordlist.txt --random-agent
+
+# Suivre redirections
+gobuster dir -u http://target.com -w wordlist.txt -r
+```
+
+---
+
+## 2️⃣ Filtrage des Résultats
+
+### Par code de statut
+
+```bash
+# Codes spécifiques
+gobuster dir -u http://target.com -w wordlist.txt -s 200,204,301,302,307,401,403
+
+# Exclure codes
+gobuster dir -u http://target.com -w wordlist.txt -b 404,403
+
+# Status codes positifs seulement
+gobuster dir -u http://target.com -w wordlist.txt -s 200,201,202,301,302
+```
+
+### Par taille de réponse
+
+```bash
+# Exclure taille spécifique
+gobuster dir -u http://target.com -w wordlist.txt --exclude-length 1234
+
+# Exclure plusieurs tailles
+gobuster dir -u http://target.com -w wordlist.txt --exclude-length 0,1234,5678
+```
+
+### Par pattern
+
+```bash
+# Pattern dans réponse
+gobuster dir -u http://target.com -w wordlist.txt -p pattern.txt
+
+# Exclure pattern (regex)
+gobuster dir -u http://target.com -w wordlist.txt --exclude-regex "error|not found"
+```
+
+---
+
+## 3️⃣ Authentification
+
+### Basic Auth
+
+```bash
+# Username et password
+gobuster dir -u http://target.com -w wordlist.txt -U username -P password
+```
+
+### Cookies
+
+```bash
+# Cookie simple
+gobuster dir -u http://target.com -w wordlist.txt -c "PHPSESSID=abc123xyz"
+
+# Multiples cookies
+gobuster dir -u http://target.com -w wordlist.txt -c "session=xxx;token=yyy"
+```
+
+### Headers custom
+
+```bash
+# Header personnalisé
+gobuster dir -u http://target.com -w wordlist.txt -H "X-Custom-Header: value"
+
+# Multiples headers
+gobuster dir -u http://target.com -w wordlist.txt -H "Authorization: Bearer token" -H "X-API-Key: key123"
+```
+
+---
+
+## 4️⃣ Mode DNS - Enumération Sous-domaines
+
+### Scan basique
+
+```bash
+# DNS enumeration
+gobuster dns -d target.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt
+
+# Avec résolveur custom
+gobuster dns -d target.com -w wordlist.txt -r 8.8.8.8
+
+# Multiples résolveurs
+gobuster dns -d target.com -w wordlist.txt -r 8.8.8.8,1.1.1.1
+```
+
+### Options DNS
+
+```bash
+# Afficher les IPs
+gobuster dns -d target.com -w wordlist.txt -i
+
+# Afficher les CNAMEs
+gobuster dns -d target.com -w wordlist.txt -c
+
+# Timeout DNS
+gobuster dns -d target.com -w wordlist.txt --timeout 5s
+
+# Wildcard check
+gobuster dns -d target.com -w wordlist.txt --wildcard
+```
+
+---
+
+## 5️⃣ Mode VHOST - Virtual Hosts
+
+### Discovery de vhosts
+
+```bash
+# VHost enumeration
+gobuster vhost -u http://target.com -w wordlist.txt
+
+# Avec domaine append
+gobuster vhost -u http://target.com -w wordlist.txt --append-domain
+
+# Filtrer par taille  (--exclude-length 154 page error de default evite les faux positif)
+gobuster vhost -u http://target.com -w wordlist.txt --exclude-length 154 -k --append-domain
+```
+
+### Options avancées
+
+```bash
+# Avec TLS
+gobuster vhost -u https://target.com -w wordlist.txt -k
+
+# Suivre redirections
+gobuster vhost -u http://target.com -w wordlist.txt -r
+
+# User-Agent custom
+gobuster vhost -u http://target.com -w wordlist.txt -a "Custom-Agent"
+```
+
+---
+
+## 6️⃣ Mode S3 - AWS Buckets
+
+### Enumération S3
+
+```bash
+# S3 bucket enumeration
+gobuster s3 -w wordlist.txt
+
+# Region spécifique
+gobuster s3 -w wordlist.txt -r us-east-1
+
+# Avec proxy
+gobuster s3 -w wordlist.txt --proxy http://127.0.0.1:8080
+```
+
+---
+
+## 7️⃣ Récursion
+
+### Scan récursif
+
+```bash
+# Recursion automatique
+gobuster dir -u http://target.com -w wordlist.txt -r
+
+# Profondeur de récursion
+gobuster dir -u http://target.com -w wordlist.txt -r -d 3
+
+# Récursion avec extensions
+gobuster dir -u http://target.com -w wordlist.txt -r -x php,html -d 2
+```
+
+---
+
+## 8️⃣ Output et Reporting
+
+### Formats de sortie
+
+```bash
+# Output dans fichier
+gobuster dir -u http://target.com -w wordlist.txt -o results.txt
+
+# Verbose mode
+gobuster dir -u http://target.com -w wordlist.txt -v
+
+# Quiet mode
+gobuster dir -u http://target.com -w wordlist.txt -q
+
+# No progress
+gobuster dir -u http://target.com -w wordlist.txt --no-progress
+
+# No errors
+gobuster dir -u http://target.com -w wordlist.txt --no-error
+```
+
+### Couleurs
+
+```bash
+# Sans couleurs
+gobuster dir -u http://target.com -w wordlist.txt --no-color
+
+# Avec couleurs (défaut)
+gobuster dir -u http://target.com -w wordlist.txt
+```
+
+---
+
+## 9️⃣ Proxy et SSL
+
+### Via proxy
+
+```bash
+# HTTP Proxy
+gobuster dir -u http://target.com -w wordlist.txt --proxy http://127.0.0.1:8080
+
+# SOCKS5 Proxy
+gobuster dir -u http://target.com -w wordlist.txt --proxy socks5://127.0.0.1:1080
+
+# Avec auth proxy
+gobuster dir -u http://target.com -w wordlist.txt --proxy http://user:pass@proxy:8080
+```
+
+### SSL/TLS
+
+```bash
+# Ignorer erreurs certificat
+gobuster dir -u https://target.com -w wordlist.txt -k
+
+# Avec certificat client
+gobuster dir -u https://target.com -w wordlist.txt --client-cert cert.pem
+```
+
+---
+
+## 🔟 Performance
+
+### Optimisation
+
+```bash
+# Nombre de threads
+gobuster dir -u http://target.com -w wordlist.txt -t 100
+
+# Délai entre requêtes
+gobuster dir -u http://target.com -w wordlist.txt --delay 100ms
+
+# Timeout personnalisé
+gobuster dir -u http://target.com -w wordlist.txt --timeout 30s
+```
+
+---
+
+## 1️⃣1️⃣ Wordlists Recommandées
+
+### SecLists
+
+```bash
+# Directories
+/usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt
+/usr/share/seclists/Discovery/Web-Content/raft-large-directories.txt
+/usr/share/seclists/Discovery/Web-Content/common.txt
+/usr/share/seclists/Discovery/Web-Content/big.txt
+
+# Files
+/usr/share/seclists/Discovery/Web-Content/raft-large-files.txt
+/usr/share/seclists/Discovery/Web-Content/common-and-italian.txt
+
+# API
+/usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt
+/usr/share/seclists/Discovery/Web-Content/graphql.txt
+
+# Subdomains
+/usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt
+/usr/share/seclists/Discovery/DNS/deepmagic.com-prefixes-top50000.txt
+```
+
+### Dirb / Dirbuster
+
+```bash
+# Dirb
+/usr/share/wordlists/dirb/common.txt
+/usr/share/wordlists/dirb/big.txt
+/usr/share/wordlists/dirb/vulns/cgis.txt
+
+# Dirbuster
+/usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt
+/usr/share/wordlists/dirbuster/directory-list-2.3-small.txt
+```
+
+---
+
+## 1️⃣2️⃣ Extensions par Technologie
+
+### PHP
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x php,php3,php4,php5,php7,phtml,phar
+```
+
+### ASP/ASP.NET
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x asp,aspx,asmx,ashx,axd
+```
+
+### JSP/Java
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x jsp,jspx,jsf,jhtml,do,action
+```
+
+### Python
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x py,pyc,pyo
+```
+
+### Config & Backup
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x txt,xml,conf,config,bak,backup,old,save,swp,~
+```
+
+### Archives
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -x zip,tar,tar.gz,tgz,7z,rar,bz2
+```
+
+---
+
+## 1️⃣3️⃣ Scripts et Automatisation
+
+### Scan complet automatisé
+
+```bash
+#!/bin/bash
+# gobuster-full-scan.sh
+
+TARGET=$1
+THREADS=50
+
+echo "[+] Starting enumeration on $TARGET"
+
+# Directory scan
+echo "[*] Directory enumeration..."
+gobuster dir -u $TARGET -w /usr/share/seclists/Discovery/Web-Content/raft-large-directories.txt -t $THREADS -s 200,301,302,403 -o dirs.txt
+
+# File scan avec extensions
+echo "[*] File enumeration..."
+gobuster dir -u $TARGET -w /usr/share/seclists/Discovery/Web-Content/raft-large-files.txt -t $THREADS -x php,html,txt,js,xml,json -s 200,301,302 -o files.txt
+
+# Backups
+echo "[*] Backup files..."
+gobuster dir -u $TARGET -w wordlist-short.txt -t $THREADS -x bak,old,backup,~,swp -o backups.txt
+
+# API endpoints
+echo "[*] API enumeration..."
+gobuster dir -u $TARGET/api -w /usr/share/seclists/Discovery/Web-Content/api/api-endpoints.txt -t $THREADS -o api.txt
+
+echo "[+] Enumeration complete!"
+```
+
+### Scan multi-cibles
+
+```bash
+#!/bin/bash
+# multi-target-gobuster.sh
+
+TARGETS="targets.txt"
+WORDLIST="/usr/share/wordlists/dirb/common.txt"
+
+while IFS= read -r target; do
+    echo "[+] Scanning $target"
+    gobuster dir -u "$target" -w $WORDLIST -t 50 -x php,html,txt -o "$(echo $target | sed 's/https\?:\/\///g' | tr '/' '_').txt"
+done < "$TARGETS"
+```
+
+---
+
+## 1️⃣4️⃣ Techniques Avancées
+
+### Bypass de WAF
+
+```bash
+# User-Agent aléatoire
+gobuster dir -u http://target.com -w wordlist.txt --random-agent
+
+# Délai entre requêtes
+gobuster dir -u http://target.com -w wordlist.txt --delay 500ms
+
+# Via proxy rotation
+# Utiliser un proxy rotating externe
+
+# Case sensitivity bypass
+gobuster dir -u http://target.com -w wordlist-mixed-case.txt
+```
+
+### Découverte de backups
+
+```bash
+# Patterns de backup communs
+gobuster dir -u http://target.com -w pages.txt -x .bak,.old,.backup,.save,.swp,~
+
+# Avec dates
+gobuster dir -u http://target.com/backup -w dates.txt
+
+# ZIP et archives
+gobuster dir -u http://target.com -w wordlist.txt -x zip,tar.gz,7z,rar
+```
+
+### API Discovery
+
+```bash
+# REST API endpoints
+gobuster dir -u http://target.com/api/v1 -w api-endpoints.txt
+
+# API versions
+for v in v1 v2 v3; do
+    gobuster dir -u http://target.com/api/$v -w api-endpoints.txt -o api-$v.txt
+done
+
+# GraphQL
+gobuster dir -u http://target.com -w wordlist.txt -p graphql
+```
+
+---
+
+## 1️⃣5️⃣ Cas Pratiques
+
+### WordPress
+
+```bash
+# WordPress structure
+gobuster dir -u http://target.com -w wordlist.txt -x php
+
+# Plugins
+gobuster dir -u http://target.com/wp-content/plugins -w /usr/share/seclists/Discovery/Web-Content/CMS/wordpress-plugins.txt
+
+# Themes
+gobuster dir -u http://target.com/wp-content/themes -w /usr/share/seclists/Discovery/Web-Content/CMS/wordpress-themes.txt
+
+# Uploads
+gobuster dir -u http://target.com/wp-content/uploads -w years.txt
+```
+
+### Admin Panels
+
+```bash
+# Admin paths
+gobuster dir -u http://target.com -w /usr/share/seclists/Discovery/Web-Content/admin-panels.txt
+
+# Common admin
+gobuster dir -u http://target.com -w wordlist.txt -p admin,administrator,login,panel,dashboard
+```
+
+### Bug Bounty Workflow
+
+```bash
+# 1. Subdomains
+gobuster dns -d target.com -w subdomains.txt -o subs.txt
+
+# 2. Pour chaque sous-domaine
+cat subs.txt | grep "Found:" | awk '{print $2}' | while read sub; do
+    # 3. Directory fuzzing
+    gobuster dir -u http://$sub -w common.txt -x php,html -o $sub-dirs.txt
+    
+    # 4. Vhosts sur le subdomain
+    gobuster vhost -u http://$sub -w vhosts.txt -o $sub-vhosts.txt
+done
+```
+
+---
+
+## 1️⃣6️⃣ Commandes Essentielles
+
+### Scan rapide
+
+```bash
+gobuster dir -u http://target.com -w /usr/share/wordlists/dirb/common.txt -t 50 -x php,html,txt
+```
+
+### Scan complet
+
+```bash
+gobuster dir -u http://target.com -w /usr/share/seclists/Discovery/Web-Content/directory-list-2.3-medium.txt -t 50 -x php,html,txt,js,xml,json,zip,bak -s 200,301,302,401,403 -r -o full-scan.txt
+```
+
+### Scan recursif
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt -r -d 3 -x php,html
+```
+
+### Subdomains
+
+```bash
+gobuster dns -d target.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-110000.txt -t 50 -o subdomains.txt
+```
+
+### Virtual hosts
+
+```bash
+gobuster vhost -u http://target.com -w /usr/share/seclists/Discovery/DNS/subdomains-top1million-5000.txt --append-domain -t 50
+```
+
+### Via Burp
+
+```bash
+gobuster dir -u http://target.com -w wordlist.txt --proxy http://127.0.0.1:8080 -k
+```
+
+---
+
+## 1️⃣7️⃣ Comparaison avec d'autres outils
+
+### Gobuster vs ffuf
+
+```
+Gobuster :
++ Simple et direct
++ Stable et fiable
+- Moins de fonctionnalités de filtrage
+- Pas de fuzzing multi-position
+
+ffuf :
++ Filtrage avancé
++ Fuzzing multi-position
++ Plus flexible
+- Courbe d'apprentissage plus élevée
+```
+
+### Gobuster vs Dirb
+
+```
+Gobuster :
++ Beaucoup plus rapide (Go vs C)
++ Multi-threading efficace
++ Maintenance active
+
+Dirb :
++ Inclus dans Kali
+- Très lent
+- Plus maintenu activement
+```
+
+---
+
+## 1️⃣8️⃣ Cheatsheet Rapide
+
+```bash
+# Directory
+gobuster dir -u http://target.com -w wordlist.txt
+
+# Extensions
+gobuster dir -u http://target.com -w wordlist.txt -x php,html,txt
+
+# Status codes
+gobuster dir -u http://target.com -w wordlist.txt -s 200,301,302,403
+
+# Recursif
+gobuster dir -u http://target.com -w wordlist.txt -r -d 2
+
+# Threads
+gobuster dir -u http://target.com -w wordlist.txt -t 100
+
+# Output
+gobuster dir -u http://target.com -w wordlist.txt -o results.txt
+
+# DNS
+gobuster dns -d target.com -w wordlist.txt
+
+# VHost
+gobuster vhost -u http://target.com -w wordlist.txt
+
+# S3
+gobuster s3 -w wordlist.txt
+
+# Proxy
+gobuster dir -u http://target.com -w wordlist.txt --proxy http://127.0.0.1:8080
+
+# SSL ignore
+gobuster dir -u https://target.com -w wordlist.txt -k
+```
+
+---
+
+## 1️⃣9️⃣ Ressources
+
+### Documentation
+- GitHub : https://github.com/OJ/gobuster
+- Wiki : https://github.com/OJ/gobuster/wiki
+
+### Wordlists
+- SecLists : https://github.com/danielmiessler/SecLists
+- Assetnote : https://wordlists.assetnote.io/
+
+### Tutoriels
+- HackTricks : https://book.hacktricks.xyz/pentesting-web/gobuster
+- TryHackMe : Content Discovery room
+- HackTheBox : Enumeration challenges
+
+---
+
+## 💡 Tips Pro
+
+1. **Toujours spécifier -s** pour filtrer les codes HTTP
+2. **Extensions multiples** avec -x pour couverture complète
+3. **Threads à 50-100** pour performances optimales
+4. **Output dans fichier** pour analyse ultérieure
+5. **Récursion avec -r -d 2** pour exploration profonde
+6. **Combiner avec Burp** via --proxy pour analyse manuelle
+7. **Random agent** pour éviter les blocks : --random-agent
+8. **SecLists** pour wordlists de qualité
+9. **Mode DNS** pour énumération de sous-domaines
+10. **Vérifier manuellement** les 403 (peuvent être bypassables)
+
+---
+
+**🔍 Gobuster est l'outil d'énumération web le plus simple et efficace. Parfait pour la reconnaissance rapide !**

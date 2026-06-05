@@ -1,0 +1,609 @@
+# 📡 Tcpdump - Guide Complet
+
+L'outil en ligne de commande pour la capture et l'analyse du trafic réseau.
+
+---
+
+## 📖 Présentation
+
+**Tcpdump** est l'analyseur de paquets en CLI le plus puissant et répandu. Indispensable pour le debugging réseau, l'analyse forensique et le pentest.
+
+```
+Fonctionnalités:
+├── Capture de paquets en temps réel
+├── Filtrage puissant (BPF)
+├── Sauvegarde au format pcap
+├── Analyse de protocoles
+├── Debugging réseau
+└── Compatible avec Wireshark
+```
+
+---
+
+## 🔧 Installation
+
+```bash
+# Debian/Ubuntu/Kali
+apt install tcpdump
+
+# RedHat/CentOS
+yum install tcpdump
+
+# macOS
+brew install tcpdump
+
+# Vérifier
+tcpdump --version
+
+# Droits nécessaires
+sudo tcpdump  # Root requis pour capturer
+```
+
+---
+
+## 1️⃣ Capture Basique
+
+### Capturer sur une interface
+
+```bash
+# Voir les interfaces disponibles
+tcpdump -D
+ip a
+
+# Capturer sur eth0
+sudo tcpdump -i eth0
+
+# Capturer sur toutes les interfaces
+sudo tcpdump -i any
+
+# Limiter le nombre de paquets
+sudo tcpdump -i eth0 -c 100
+
+# Sans résolution DNS (plus rapide)
+sudo tcpdump -i eth0 -n
+
+# Sans résolution DNS ni ports
+sudo tcpdump -i eth0 -nn
+
+# Afficher en ASCII
+sudo tcpdump -i eth0 -A
+
+# Afficher en hex et ASCII
+sudo tcpdump -i eth0 -X
+
+# Afficher en hex seulement
+sudo tcpdump -i eth0 -xx
+```
+
+### Options de verbosité
+
+```bash
+# Verbosité normale
+sudo tcpdump -i eth0
+
+# Plus de détails
+sudo tcpdump -i eth0 -v
+
+# Encore plus
+sudo tcpdump -i eth0 -vv
+
+# Maximum
+sudo tcpdump -i eth0 -vvv
+```
+
+### Options d'affichage
+
+```bash
+# Timestamp en format lisible
+sudo tcpdump -i eth0 -tttt
+
+# Sans timestamp
+sudo tcpdump -i eth0 -t
+
+# Afficher les données (snaplen)
+sudo tcpdump -i eth0 -s 0        # Capture complète
+sudo tcpdump -i eth0 -s 1500     # Limiter à 1500 bytes
+
+# Quiet (moins de sortie)
+sudo tcpdump -i eth0 -q
+
+# Une ligne par paquet
+sudo tcpdump -i eth0 -l
+```
+
+---
+
+## 2️⃣ Sauvegarde et Lecture
+
+### Sauvegarder dans un fichier
+
+```bash
+# Sauvegarder au format pcap
+sudo tcpdump -i eth0 -w capture.pcap
+
+# Avec limite de paquets
+sudo tcpdump -i eth0 -c 1000 -w capture.pcap
+
+# Rotation de fichiers (10 fichiers de 100MB)
+sudo tcpdump -i eth0 -w capture.pcap -W 10 -C 100
+
+# Timestamp dans le nom de fichier
+sudo tcpdump -i eth0 -w capture_%Y%m%d_%H%M%S.pcap -G 3600
+
+# Rotation toutes les heures
+sudo tcpdump -i eth0 -w capture_%H.pcap -G 3600 -W 24
+```
+
+### Lire un fichier pcap
+
+```bash
+# Lire un fichier
+tcpdump -r capture.pcap
+
+# Avec filtres
+tcpdump -r capture.pcap 'port 80'
+
+# Sans résolution DNS
+tcpdump -nn -r capture.pcap
+
+# Afficher le contenu
+tcpdump -A -r capture.pcap
+tcpdump -X -r capture.pcap
+```
+
+### Combiner capture et lecture
+
+```bash
+# Capturer et afficher en temps réel
+sudo tcpdump -i eth0 -l | tee capture.txt
+
+# Capturer, sauvegarder ET afficher
+sudo tcpdump -i eth0 -w capture.pcap -v
+```
+
+---
+
+## 3️⃣ Filtres BPF (Berkeley Packet Filter)
+
+### Filtres par hôte
+
+```bash
+# Trafic vers/depuis un hôte
+sudo tcpdump -i eth0 host 192.168.1.100
+
+# Uniquement source
+sudo tcpdump -i eth0 src host 192.168.1.100
+
+# Uniquement destination
+sudo tcpdump -i eth0 dst host 192.168.1.100
+
+# Réseau entier
+sudo tcpdump -i eth0 net 192.168.1.0/24
+sudo tcpdump -i eth0 src net 10.0.0.0/8
+```
+
+### Filtres par port
+
+```bash
+# Un port spécifique
+sudo tcpdump -i eth0 port 80
+
+# Port source
+sudo tcpdump -i eth0 src port 443
+
+# Port destination
+sudo tcpdump -i eth0 dst port 22
+
+# Range de ports
+sudo tcpdump -i eth0 portrange 80-443
+
+# Plusieurs ports
+sudo tcpdump -i eth0 port 80 or port 443 or port 8080
+```
+
+### Filtres par protocole
+
+```bash
+# TCP uniquement
+sudo tcpdump -i eth0 tcp
+
+# UDP uniquement
+sudo tcpdump -i eth0 udp
+
+# ICMP
+sudo tcpdump -i eth0 icmp
+
+# ARP
+sudo tcpdump -i eth0 arp
+
+# DNS
+sudo tcpdump -i eth0 port 53
+
+# HTTP
+sudo tcpdump -i eth0 port 80
+
+# HTTPS
+sudo tcpdump -i eth0 port 443
+```
+
+### Opérateurs logiques
+
+```bash
+# AND (and, &&)
+sudo tcpdump -i eth0 host 192.168.1.1 and port 80
+sudo tcpdump -i eth0 'host 192.168.1.1 && port 80'
+
+# OR (or, ||)
+sudo tcpdump -i eth0 port 80 or port 443
+sudo tcpdump -i eth0 'port 80 || port 443'
+
+# NOT (not, !)
+sudo tcpdump -i eth0 not port 22
+sudo tcpdump -i eth0 '!port 22'
+
+# Combinaisons complexes (utiliser des guillemets)
+sudo tcpdump -i eth0 'host 192.168.1.1 and (port 80 or port 443)'
+sudo tcpdump -i eth0 '(src net 10.0.0.0/8) and not dst port 22'
+```
+
+### Filtres par flags TCP
+
+```bash
+# SYN (début de connexion)
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-syn != 0'
+sudo tcpdump -i eth0 'tcp[13] & 2 != 0'
+
+# SYN-ACK
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn|tcp-ack'
+
+# ACK
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-ack != 0'
+
+# FIN
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-fin != 0'
+
+# RST
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-rst != 0'
+
+# PUSH
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-push != 0'
+
+# Uniquement SYN (sans ACK) - nouvelles connexions
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn'
+```
+
+### Filtres par taille
+
+```bash
+# Paquets plus grands que
+sudo tcpdump -i eth0 'greater 1000'
+
+# Paquets plus petits que
+sudo tcpdump -i eth0 'less 100'
+
+# Taille exacte
+sudo tcpdump -i eth0 'len == 64'
+```
+
+---
+
+## 4️⃣ Filtres Avancés
+
+### Filtrer par contenu
+
+```bash
+# Chercher une string (HTTP GET)
+sudo tcpdump -i eth0 -A 'tcp port 80' | grep -i 'GET'
+
+# Requêtes HTTP
+sudo tcpdump -i eth0 -s 0 -A 'tcp dst port 80 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x47455420)'
+
+# Réponses HTTP
+sudo tcpdump -i eth0 -s 0 -A 'tcp src port 80 and (tcp[((tcp[12:1] & 0xf0) >> 2):4] = 0x48545450)'
+```
+
+### Filtrer par adresse MAC
+
+```bash
+# MAC source
+sudo tcpdump -i eth0 ether src aa:bb:cc:dd:ee:ff
+
+# MAC destination
+sudo tcpdump -i eth0 ether dst aa:bb:cc:dd:ee:ff
+
+# Broadcast
+sudo tcpdump -i eth0 ether broadcast
+```
+
+### Filtrer par VLAN
+
+```bash
+# Trafic VLAN
+sudo tcpdump -i eth0 vlan
+
+# VLAN spécifique
+sudo tcpdump -i eth0 'vlan 100'
+```
+
+### IPv6
+
+```bash
+# Trafic IPv6
+sudo tcpdump -i eth0 ip6
+
+# Hôte IPv6
+sudo tcpdump -i eth0 ip6 host 2001:db8::1
+```
+
+---
+
+## 5️⃣ Cas d'Usage Pentest
+
+### Capture de credentials
+
+```bash
+# FTP credentials
+sudo tcpdump -i eth0 -A port 21 | grep -i -E 'user|pass'
+
+# HTTP POST (forms)
+sudo tcpdump -i eth0 -A -s 0 'tcp port 80 and (((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)' | grep -i -E 'pass|user|login'
+
+# Telnet
+sudo tcpdump -i eth0 -A port 23
+
+# SMTP
+sudo tcpdump -i eth0 -A port 25
+```
+
+### Analyse DNS
+
+```bash
+# Tout le trafic DNS
+sudo tcpdump -i eth0 -n port 53
+
+# Requêtes DNS détaillées
+sudo tcpdump -i eth0 -vvv port 53
+
+# DNS vers un serveur spécifique
+sudo tcpdump -i eth0 'dst port 53 and dst host 8.8.8.8'
+```
+
+### Détection de scan
+
+```bash
+# SYN scan (Nmap -sS)
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn'
+
+# Détecter les scans depuis une IP
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn and src host ATTACKER_IP'
+
+# Connexions rapides (scan)
+sudo tcpdump -i eth0 -c 1000 'tcp[tcpflags] == tcp-syn' | sort | uniq -c | sort -rn
+```
+
+### MITM / ARP
+
+```bash
+# Trafic ARP
+sudo tcpdump -i eth0 arp
+
+# ARP replies (potentiel spoofing)
+sudo tcpdump -i eth0 'arp[6:2] == 2'
+
+# Surveiller une IP spécifique
+sudo tcpdump -i eth0 arp and host 192.168.1.1
+```
+
+### Analyse SMB/NetBIOS
+
+```bash
+# SMB
+sudo tcpdump -i eth0 port 445
+
+# NetBIOS
+sudo tcpdump -i eth0 port 137 or port 138 or port 139
+```
+
+---
+
+## 6️⃣ Capture sur Machine Distante
+
+### Via SSH
+
+```bash
+# Capturer sur une machine distante et afficher localement
+ssh user@remote "sudo tcpdump -i eth0 -w -" | wireshark -k -i -
+
+# Sauvegarder localement
+ssh user@remote "sudo tcpdump -i eth0 -w - -c 1000" > remote_capture.pcap
+
+# Avec filtre
+ssh user@remote "sudo tcpdump -i eth0 -w - port 80" | tcpdump -r -
+```
+
+### Via netcat
+
+```bash
+# Sur la machine distante
+sudo tcpdump -i eth0 -w - | nc LOCAL_IP 9999
+
+# Sur la machine locale
+nc -lvp 9999 > capture.pcap
+```
+
+---
+
+## 7️⃣ Performance et Optimisation
+
+### Réduire la charge
+
+```bash
+# Ne pas résoudre DNS
+sudo tcpdump -nn -i eth0
+
+# Limiter la taille capturée
+sudo tcpdump -i eth0 -s 96    # Juste les headers
+
+# Buffer plus grand (éviter les drops)
+sudo tcpdump -i eth0 -B 4096
+
+# Mode promiscuous off (uniquement trafic local)
+sudo tcpdump -i eth0 -p
+```
+
+### Statistiques
+
+```bash
+# Afficher les statistiques à la fin
+sudo tcpdump -i eth0 -c 1000
+# Affiche: X packets captured, Y packets received by filter, Z packets dropped by kernel
+
+# Vérifier les drops
+sudo tcpdump -i eth0 --print
+```
+
+### Capture haute performance
+
+```bash
+# Pour capturer beaucoup de trafic
+sudo tcpdump -i eth0 -nn -s 0 -w capture.pcap -B 8192 -Z root
+```
+
+---
+
+## 8️⃣ Intégration avec Wireshark
+
+### Pipeline vers Wireshark
+
+```bash
+# Capturer et envoyer à Wireshark en temps réel
+sudo tcpdump -i eth0 -w - | wireshark -k -i -
+
+# Avec filtre
+sudo tcpdump -i eth0 port 80 -w - | wireshark -k -i -
+
+# Depuis une machine distante
+ssh user@remote "sudo tcpdump -i eth0 -w -" | wireshark -k -i -
+```
+
+### Conversion
+
+```bash
+# Les fichiers .pcap de tcpdump sont directement lisibles par Wireshark
+wireshark capture.pcap
+
+# En ligne de commande avec tshark
+tshark -r capture.pcap
+tshark -r capture.pcap -Y "http"
+```
+
+---
+
+## 9️⃣ Exemples Pratiques Complets
+
+### Capturer une session web complète
+
+```bash
+sudo tcpdump -i eth0 -nn -A -s 0 \
+    'host www.example.com and (port 80 or port 443)' \
+    -w web_session.pcap
+```
+
+### Capturer le handshake TLS
+
+```bash
+sudo tcpdump -i eth0 -nn \
+    'tcp port 443 and (tcp[((tcp[12] & 0xf0) >> 2)] = 0x16)' \
+    -w tls_handshake.pcap
+```
+
+### Monitorer les connexions SSH
+
+```bash
+sudo tcpdump -i eth0 -nn 'port 22' -l | \
+    awk '/IP/ {print $3, "->", $5}'
+```
+
+### Détecter les tentatives de brute force
+
+```bash
+# SSH brute force (beaucoup de SYN vers port 22)
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn and dst port 22' -l | \
+    awk '{print $3}' | cut -d. -f1-4 | sort | uniq -c | sort -rn
+```
+
+### Logger tout le trafic d'une IP suspecte
+
+```bash
+sudo tcpdump -i eth0 -nn -tttt -s 0 \
+    host SUSPECT_IP \
+    -w suspect_$(date +%Y%m%d_%H%M%S).pcap
+```
+
+### Extraire les User-Agents HTTP
+
+```bash
+sudo tcpdump -i eth0 -nn -A -s 0 'tcp dst port 80' | \
+    grep -i 'User-Agent'
+```
+
+---
+
+## 📋 Cheatsheet Rapide
+
+```bash
+# Capture basique
+sudo tcpdump -i eth0
+sudo tcpdump -i eth0 -nn              # Sans résolution DNS
+sudo tcpdump -i eth0 -c 100           # 100 paquets
+sudo tcpdump -i eth0 -A               # Afficher ASCII
+sudo tcpdump -i eth0 -X               # Afficher Hex+ASCII
+
+# Sauvegarder/Lire
+sudo tcpdump -i eth0 -w capture.pcap
+tcpdump -r capture.pcap
+
+# Filtres hôte
+sudo tcpdump -i eth0 host 192.168.1.1
+sudo tcpdump -i eth0 src host 192.168.1.1
+sudo tcpdump -i eth0 dst host 192.168.1.1
+
+# Filtres port
+sudo tcpdump -i eth0 port 80
+sudo tcpdump -i eth0 src port 443
+sudo tcpdump -i eth0 portrange 80-443
+
+# Filtres protocole
+sudo tcpdump -i eth0 tcp
+sudo tcpdump -i eth0 udp
+sudo tcpdump -i eth0 icmp
+
+# Combinaisons
+sudo tcpdump -i eth0 'host 192.168.1.1 and port 80'
+sudo tcpdump -i eth0 'port 80 or port 443'
+sudo tcpdump -i eth0 'not port 22'
+
+# TCP flags
+sudo tcpdump -i eth0 'tcp[tcpflags] == tcp-syn'      # SYN only
+sudo tcpdump -i eth0 'tcp[tcpflags] & tcp-syn != 0'  # Contient SYN
+
+# Capture credentials
+sudo tcpdump -i eth0 -A port 21 | grep -i 'user\|pass'
+sudo tcpdump -i eth0 -A port 80 | grep -i 'password'
+
+# Vers Wireshark
+sudo tcpdump -i eth0 -w - | wireshark -k -i -
+```
+
+---
+
+## 📚 Ressources
+
+- **Man page** : `man tcpdump`
+- **BPF Filters** : https://www.tcpdump.org/manpages/pcap-filter.7.html
+- **Exemples** : https://danielmiessler.com/study/tcpdump/
+- **Cheatsheet** : https://packetlife.net/media/library/12/tcpdump.pdf
+
+---
+
+**Tags:** `#tcpdump #capture #packets #network #pcap #bpf #analysis #forensics #sniffing`

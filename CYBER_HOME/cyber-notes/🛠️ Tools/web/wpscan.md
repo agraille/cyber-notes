@@ -1,0 +1,529 @@
+# 🔐 WPScan - Cheatsheet Cyber Sécurité
+
+Guide orienté **audit WordPress** et **énumération de vulnérabilités** avec WPScan. Focus sur la découverte de plugins/thèmes vulnérables, énumération d'utilisateurs et exploitation.
+
+---
+
+## 📖 Qu'est-ce que WPScan ?
+
+**WPScan** est un scanner de sécurité dédié à **WordPress** permettant de :
+- Détecter la version de WordPress
+- Énumérer les plugins et leurs vulnérabilités
+- Énumérer les thèmes
+- Découvrir les utilisateurs
+- Tester des mots de passe (bruteforce)
+- Identifier les mauvaises configurations
+
+**Avantages** :
+- Base de données de vulnérabilités dédiée WordPress (WPVulnDB)
+- Activement maintenu
+- Simple d'utilisation
+- Intégration API pour les CVE
+
+---
+
+## ⚙️ Installation & API Token
+
+```bash
+# Kali Linux (préinstallé)
+wpscan --version
+
+# Gem Ruby
+gem install wpscan
+
+# Docker
+docker run -it --rm wpscanteam/wpscan
+
+# Mise à jour
+wpscan --update
+
+# API Token (gratuit sur https://wpscan.com/register)
+# Permet d'accéder aux vulnérabilités connues
+export WPSCAN_API_TOKEN="votre_token_ici"
+```
+
+---
+
+## 1️⃣ Scan de Base
+
+### Commandes essentielles
+
+```bash
+# Scan simple
+wpscan --url http://target.com
+
+# Avec API token (vulnérabilités)
+wpscan --url http://target.com --api-token VOTRE_TOKEN
+
+# Verbose
+wpscan --url http://target.com -v
+
+# Ignorer erreurs SSL
+wpscan --url https://target.com --disable-tls-checks
+
+# Via proxy
+wpscan --url http://target.com --proxy http://127.0.0.1:8080
+```
+
+### Exemple de sortie
+
+```
+[+] URL: http://target.com/
+[+] Started: Mon Jan 01 12:00:00 2024
+
+[+] WordPress version 5.6.1 identified (Insecure, released on 2021-02-09)
+[+] WordPress theme in use: twentytwenty
+[+] Enumerating All Plugins (via Passive Methods)
+[i] No plugins Found.
+[+] Enumerating Users (via Passive and Aggressive Methods)
+[i] User(s) Identified:
+[+] admin
+```
+
+---
+
+## 2️⃣ Modes d'Énumération (-e)
+
+### Syntaxe de base
+
+```bash
+wpscan --url http://target.com -e [OPTIONS]
+```
+
+### Options d'énumération
+
+```bash
+# Plugins vulnérables uniquement
+wpscan --url http://target.com -e vp
+
+# Tous les plugins (lent)
+wpscan --url http://target.com -e ap
+
+# Thèmes vulnérables
+wpscan --url http://target.com -e vt
+
+# Tous les thèmes
+wpscan --url http://target.com -e at
+
+# Utilisateurs
+wpscan --url http://target.com -e u
+
+# Timthumbs (vulnérabilité classique)
+wpscan --url http://target.com -e tt
+
+# Config backups
+wpscan --url http://target.com -e cb
+
+# DB exports
+wpscan --url http://target.com -e dbe
+
+# TOUT (scan complet)
+wpscan --url http://target.com -e ap,at,tt,cb,dbe,u,m --api-token TOKEN
+```
+
+### Scan complet recommandé
+
+```bash
+wpscan --url http://target.com \
+    --api-token VOTRE_TOKEN \
+    -e vp,vt,tt,cb,dbe,u \
+    --plugins-detection aggressive \
+    -o wpscan-results.txt
+```
+
+---
+
+## 3️⃣ Détection de Plugins
+
+### Modes de détection
+
+```bash
+# Passif (défaut) - analyse le HTML/CSS
+wpscan --url http://target.com -e ap --plugins-detection passive
+
+# Mixte - passif + quelques requêtes
+wpscan --url http://target.com -e ap --plugins-detection mixed
+
+# Agressif - bruteforce de tous les chemins de plugins
+wpscan --url http://target.com -e ap --plugins-detection aggressive
+```
+
+### Threads pour plugins
+
+```bash
+# Accélérer la détection
+wpscan --url http://target.com -e ap \
+    --plugins-detection aggressive \
+    --max-threads 50
+```
+
+---
+
+## 4️⃣ Détection de Thèmes
+
+### Modes de détection
+
+```bash
+# Thèmes vulnérables
+wpscan --url http://target.com -e vt
+
+# Tous les thèmes (passif)
+wpscan --url http://target.com -e at --themes-detection passive
+
+# Tous les thèmes (agressif)
+wpscan --url http://target.com -e at --themes-detection aggressive
+```
+
+---
+
+## 5️⃣ Énumération des Utilisateurs
+
+### Méthodes d'énumération
+
+```bash
+# Énumération standard
+wpscan --url http://target.com -e u
+
+# Par IDs (1 à 10)
+wpscan --url http://target.com -e u1-10
+
+# Par IDs (1 à 100)
+wpscan --url http://target.com -e u1-100
+
+# Mode agressif
+wpscan --url http://target.com -e u --users-detection aggressive
+
+# Méthodes combinées
+wpscan --url http://target.com -e u --users-detection mixed
+```
+
+### Comment WPScan trouve les users
+
+```
+/wp-json/wp/v2/users          → API REST WordPress (très fiable)
+/?author=1                     → Redirection vers /author/username
+/wp-login.php (error messages) → Messages d'erreur différenciés
+XML-RPC                        → Méthode système.listMethods
+```
+
+---
+
+## 6️⃣ Bruteforce de Mots de Passe
+
+### Attaque par dictionnaire
+
+```bash
+# Bruteforce sur un user connu
+wpscan --url http://target.com \
+    --usernames admin \
+    --passwords /usr/share/wordlists/rockyou.txt
+
+# Plusieurs usernames
+wpscan --url http://target.com \
+    --usernames admin,administrator,editor \
+    --passwords /usr/share/wordlists/rockyou.txt
+
+# Usernames depuis fichier
+wpscan --url http://target.com \
+    --usernames users.txt \
+    --passwords /usr/share/wordlists/rockyou.txt
+
+# Avec threads (attention aux lockouts)
+wpscan --url http://target.com \
+    --usernames admin \
+    --passwords rockyou.txt \
+    --max-threads 5
+
+# Avec délai entre tentatives
+wpscan --url http://target.com \
+    --usernames admin \
+    --passwords rockyou.txt \
+    --throttle 500
+```
+
+### Wordlists recommandées
+
+```bash
+# Petites wordlists pour CTF
+/usr/share/wordlists/metasploit/http_default_pass.txt
+/usr/share/seclists/Passwords/Common-Credentials/10k-most-common.txt
+
+# Standard
+/usr/share/wordlists/rockyou.txt
+
+# WordPress spécifique
+/usr/share/seclists/Passwords/Common-Credentials/best1050.txt
+```
+
+---
+
+## 7️⃣ Authentification
+
+### Scan derrière une authentification
+
+```bash
+# Cookie de session (après connexion manuelle)
+wpscan --url http://target.com \
+    --cookie "wordpress_logged_in_xxx=valeur; wordpress_sec_xxx=valeur"
+
+# HTTP Basic Auth
+wpscan --url http://target.com \
+    --http-auth "admin:password"
+
+# Header personnalisé
+wpscan --url http://target.com \
+    --headers "Authorization: Bearer token"
+```
+
+---
+
+## 8️⃣ Options de Scan
+
+### Contrôle des requêtes
+
+```bash
+# User-Agent personnalisé
+wpscan --url http://target.com \
+    --user-agent "Mozilla/5.0 (X11; Linux x86_64)"
+
+# Random User-Agent
+wpscan --url http://target.com --random-user-agent
+
+# Threads
+wpscan --url http://target.com --max-threads 10
+
+# Timeout
+wpscan --url http://target.com --request-timeout 60
+
+# Throttle (ms entre requêtes)
+wpscan --url http://target.com --throttle 200
+
+# Suivre redirections
+wpscan --url http://target.com --follow-redirection
+```
+
+---
+
+## 9️⃣ Output et Reporting
+
+```bash
+# Fichier texte
+wpscan --url http://target.com -o results.txt
+
+# Format JSON
+wpscan --url http://target.com -o results.json -f json
+
+# Format CLI (défaut)
+wpscan --url http://target.com -o results.txt -f cli
+
+# Quiet mode
+wpscan --url http://target.com -q
+
+# Verbose complet
+wpscan --url http://target.com -v --api-token TOKEN
+```
+
+---
+
+## 🔟 Vulnérabilités et API
+
+### Utilisation de l'API WPScan
+
+```bash
+# Avec token (500 req/jour gratuit)
+wpscan --url http://target.com --api-token VOTRE_TOKEN
+
+# Vérifier le quota restant
+wpscan --url http://target.com --api-token TOKEN 2>&1 | grep "API"
+
+# Scan complet avec vulnérabilités
+wpscan --url http://target.com \
+    --api-token TOKEN \
+    -e vp,vt,u \
+    --plugins-detection aggressive \
+    -o vuln-scan.json \
+    -f json
+```
+
+### Informations retournées avec l'API
+
+```
+- CVE associées aux plugins/thèmes/core
+- Score CVSS
+- Références (NVD, Exploit-DB...)
+- Type de vulnérabilité (SQLi, XSS, LFI, RCE...)
+- Versions affectées
+- Versions patchées
+```
+
+---
+
+## 1️⃣1️⃣ Cas Pratiques
+
+### CTF / HackTheBox Workflow
+
+```bash
+# 1. Scan initial
+wpscan --url http://10.10.10.X --api-token TOKEN -v 2>&1 | tee wpscan-init.txt
+
+# 2. Énumération complète
+wpscan --url http://10.10.10.X \
+    --api-token TOKEN \
+    -e ap,at,u \
+    --plugins-detection aggressive \
+    --max-threads 20 \
+    -o wpscan-full.txt
+
+# 3. Bruteforce si users trouvés
+wpscan --url http://10.10.10.X \
+    --usernames admin \
+    --passwords /usr/share/wordlists/rockyou.txt \
+    --max-threads 5
+
+# 4. Chercher configs exposées
+wpscan --url http://10.10.10.X -e cb,dbe
+```
+
+### Trouver des plugins vulnérables rapidement
+
+```bash
+wpscan --url http://target.com \
+    --api-token TOKEN \
+    -e vp \
+    --plugins-detection aggressive \
+    -f json -o plugins.json
+
+# Parser les vulnérabilités
+cat plugins.json | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for plugin, info in data.get('plugins', {}).items():
+    vulns = info.get('vulnerabilities', [])
+    if vulns:
+        print(f'\n[VULN] {plugin}')
+        for v in vulns:
+            print(f'  - {v[\"title\"]}')
+            print(f'    Type: {v.get(\"type\", \"N/A\")}')
+            print(f'    Fixed: {v.get(\"fixed_in\", \"Not fixed\")}')
+"
+```
+
+### WordPress XML-RPC
+
+```bash
+# Vérifier si XML-RPC est activé
+curl -s http://target.com/xmlrpc.php
+
+# WPScan détecte automatiquement XML-RPC
+wpscan --url http://target.com -v | grep -i "xmlrpc"
+
+# Bruteforce via XML-RPC (plus rapide, contourne certains lockouts)
+wpscan --url http://target.com \
+    --usernames admin \
+    --passwords rockyou.txt \
+    --password-attack xmlrpc
+```
+
+### Scan depuis l'intérieur (accès shell)
+
+```bash
+# Chercher wp-config.php
+find / -name "wp-config.php" 2>/dev/null
+cat /var/www/html/wp-config.php | grep -E "DB_|table_prefix"
+
+# Lire la config directement
+grep -E "DB_NAME|DB_USER|DB_PASSWORD|DB_HOST" wp-config.php
+```
+
+---
+
+## 1️⃣2️⃣ Chemins WordPress Importants
+
+```bash
+# Fichiers sensibles à vérifier manuellement
+/wp-config.php              # Config DB (jamais accessible normalement)
+/wp-config.php.bak          # Backup (parfois accessible !)
+/.htaccess                  # Config Apache
+/wp-login.php               # Page de login
+/wp-admin/                  # Admin panel
+/xmlrpc.php                 # API XML-RPC (souvent vulnérable)
+/wp-json/wp/v2/users        # API REST - liste des users
+/wp-content/uploads/        # Fichiers uploadés
+/wp-content/plugins/        # Plugins installés
+/wp-content/themes/         # Thèmes installés
+/wp-includes/               # Core WordPress
+/readme.html                # Version WordPress exposée
+/license.txt                # Version WordPress exposée
+/wp-cron.php                # Tâches planifiées
+/wp-trackback.php           # Trackback (souvent vulnérable)
+```
+
+---
+
+## 1️⃣3️⃣ Cheatsheet Rapide
+
+```bash
+# Scan basique
+wpscan --url http://target.com
+
+# Avec API token
+wpscan --url http://target.com --api-token TOKEN
+
+# Plugins vulnérables
+wpscan --url http://target.com -e vp --api-token TOKEN
+
+# Tous les plugins (agressif)
+wpscan --url http://target.com -e ap --plugins-detection aggressive
+
+# Thèmes vulnérables
+wpscan --url http://target.com -e vt --api-token TOKEN
+
+# Utilisateurs
+wpscan --url http://target.com -e u
+
+# Users IDs 1-50
+wpscan --url http://target.com -e u1-50
+
+# Scan complet
+wpscan --url http://target.com -e ap,at,tt,cb,dbe,u --api-token TOKEN
+
+# Bruteforce
+wpscan --url http://target.com --usernames admin --passwords rockyou.txt
+
+# Bruteforce XML-RPC
+wpscan --url http://target.com --usernames admin --passwords rockyou.txt --password-attack xmlrpc
+
+# Output JSON
+wpscan --url http://target.com -f json -o out.json
+
+# SSL ignore
+wpscan --url https://target.com --disable-tls-checks
+
+# Proxy
+wpscan --url http://target.com --proxy http://127.0.0.1:8080
+
+# Random UA
+wpscan --url http://target.com --random-user-agent
+
+# Mise à jour
+wpscan --update
+```
+
+---
+
+## 💡 Tips Pro
+
+1. **Toujours utiliser --api-token** pour avoir les CVE associées
+2. **-e vp** avant **-e ap** : les plugins vulnérables suffisent souvent
+3. **--plugins-detection aggressive** trouve beaucoup plus de plugins
+4. **XML-RPC bruteforce** est plus rapide et contourne souvent les lockouts
+5. **/wp-json/wp/v2/users** accessible même sans auth sur les vieux WP
+6. **readme.html et license.txt** exposent souvent la version exacte
+7. **wp-config.php.bak** ou **.old** parfois laissé accessible par erreur
+8. **Combiner avec Feroxbuster** pour trouver des fichiers uploadés dans `/wp-content/uploads/`
+9. **Checker les plugins inactifs** : toujours présents dans le FS même désactivés
+10. **--max-threads 5** pour le bruteforce pour éviter les lockouts de compte
+
+---
+
+**🔐 WPScan est l'outil incontournable pour tout audit WordPress. Un token API gratuit suffit pour la plupart des CTF et pentests !**

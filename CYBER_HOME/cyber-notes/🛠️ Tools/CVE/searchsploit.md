@@ -1,0 +1,793 @@
+# 🔎 Searchsploit - Cheatsheet Cyber Sécurité
+
+Guide orienté **recherche d'exploits** et **exploitation de vulnérabilités** avec searchsploit. Focus sur la découverte rapide et l'utilisation d'exploits.
+
+---
+
+## 📖 Qu'est-ce que Searchsploit ?
+
+**Searchsploit** est un outil en ligne de commande pour rechercher des exploits dans la base de données **Exploit-DB** (exploit-database).
+
+**Base de données** : 40,000+ exploits et PoC
+
+**Avantages** :
+- Offline (pas besoin d'internet)
+- Rapide
+- Intégré dans Kali Linux
+- Compatible avec Metasploit
+
+---
+
+## 1️⃣ Recherche Basique
+
+### Recherche simple
+
+```bash
+# Recherche par mot-clé
+searchsploit apache
+
+# Recherche multiple mots-clés
+searchsploit apache 2.4
+
+# Recherche exacte
+searchsploit "apache 2.4.49"
+
+# Recherche par version
+searchsploit wordpress 5.8
+```
+
+### Recherche par service
+
+```bash
+# Services communs
+searchsploit ssh
+searchsploit ftp
+searchsploit mysql
+searchsploit smb
+searchsploit rdp
+searchsploit telnet
+searchsploit smtp
+```
+
+### Recherche par plateforme
+
+```bash
+# Par OS
+searchsploit windows
+searchsploit linux
+searchsploit macos
+searchsploit android
+
+# Par architecture
+searchsploit x86
+searchsploit x64
+searchsploit arm
+```
+
+---
+
+## 2️⃣ Filtrage et Options
+
+### Filtres de titre
+
+```bash
+# Case insensitive (défaut)
+searchsploit Apache
+
+# Case sensitive
+searchsploit -c Apache
+
+# Titre exact
+searchsploit -t "Apache 2.4.49"
+
+# Exclure des termes
+searchsploit apache --exclude=2.2
+```
+
+### Filtres par type
+
+```bash
+# Remote exploits seulement
+searchsploit apache --remote
+
+# Local exploits seulement
+searchsploit windows --local
+
+# Web exploits
+searchsploit wordpress --webapp
+
+# DOS exploits
+searchsploit apache --dos
+```
+
+### Filtres avancés
+
+```bash
+# Par année
+searchsploit apache --year 2021
+
+# Par CVE
+searchsploit CVE-2021-41773
+
+# Par auteur
+searchsploit --author "Metasploit"
+
+# Exclure CVE
+searchsploit apache --exclude-cve
+```
+
+---
+
+## 3️⃣ Affichage des Résultats
+
+### Formats de sortie
+
+```bash
+# Affichage standard
+searchsploit apache
+
+# Avec chemin complet
+searchsploit apache -p
+
+# Affichage détaillé
+searchsploit apache -v
+
+# JSON output
+searchsploit apache --json
+
+# XML output
+searchsploit apache --xml
+
+# Overflow (affichage complet sans troncature)
+searchsploit apache --overflow
+```
+
+### Couleurs et présentation
+
+```bash
+# Sans couleur
+searchsploit apache --colour
+
+# Strict mode (recherche stricte)
+searchsploit apache --strict
+```
+
+---
+
+## 4️⃣ Examiner et Copier des Exploits
+
+### Examiner le code
+
+```bash
+# Examiner un exploit
+searchsploit -x 50383
+
+# Examiner par chemin
+searchsploit -x exploits/linux/remote/50383.py
+
+# Examiner avec less
+searchsploit -x 50383 | less
+
+# Examiner avec cat
+cat $(searchsploit -p 50383 | awk '{print $NF}')
+```
+
+### Copier des exploits
+
+```bash
+# Copier dans répertoire actuel
+searchsploit -m 50383
+
+# Copier plusieurs exploits
+searchsploit -m 50383 50384 50385
+
+# Copier avec chemin complet
+cp $(searchsploit -p 50383 | awk '{print $NF}') .
+```
+
+---
+
+## 5️⃣ Recherche par Service et Version
+
+### À partir d'un scan Nmap
+
+```bash
+# Nmap scan
+nmap -sV target.com -oX scan.xml
+
+# Recherche automatique depuis XML
+searchsploit --nmap scan.xml
+```
+
+### Recherche ciblée
+
+```bash
+# Apache
+searchsploit apache 2.4.49
+searchsploit "apache httpd 2.4.49"
+
+# OpenSSH
+searchsploit openssh 7.4
+searchsploit "openssh 7.4p1"
+
+# MySQL
+searchsploit mysql 5.7
+searchsploit "mysql 5.7.29"
+
+# SMB
+searchsploit samba 4.11
+searchsploit "samba 4.11.6"
+
+# FTP
+searchsploit vsftpd 2.3.4
+searchsploit proftpd 1.3.5
+```
+
+---
+
+## 6️⃣ Recherche par CVE
+
+### CVE lookup
+
+```bash
+# Recherche par CVE
+searchsploit CVE-2021-41773
+
+# CVE récents (2023)
+searchsploit CVE-2023
+
+# CVE anciens
+searchsploit CVE-2014
+
+# Multiple CVEs
+searchsploit CVE-2021-41773 CVE-2021-42013
+```
+
+### CVE populaires
+
+```bash
+# EternalBlue (MS17-010)
+searchsploit CVE-2017-0144
+searchsploit ms17-010
+
+# Log4Shell
+searchsploit CVE-2021-44228
+searchsploit log4j
+
+# Shellshock
+searchsploit CVE-2014-6271
+searchsploit shellshock
+
+# Heartbleed
+searchsploit CVE-2014-0160
+searchsploit heartbleed
+
+# BlueKeep
+searchsploit CVE-2019-0708
+searchsploit bluekeep
+```
+
+---
+
+## 7️⃣ Workflows d'Exploitation
+
+### Workflow type 1 : Depuis Nmap
+
+```bash
+# 1. Scan Nmap avec versions
+nmap -sV -p- target.com -oX nmap_scan.xml
+
+# 2. Recherche automatique
+searchsploit --nmap nmap_scan.xml
+
+# 3. Examiner les exploits intéressants
+searchsploit -x 50383
+
+# 4. Copier l'exploit
+searchsploit -m 50383
+
+# 5. Adapter et exécuter
+python 50383.py target.com 80
+```
+
+### Workflow type 2 : Depuis service connu
+
+```bash
+# 1. Identifier service et version
+# Exemple : Apache 2.4.49
+
+# 2. Recherche
+searchsploit "apache 2.4.49"
+
+# 3. Filtrer par remote
+searchsploit "apache 2.4.49" --remote
+
+# 4. Examiner
+searchsploit -x 50383
+
+# 5. Vérifier le CVE
+searchsploit CVE-2021-41773
+
+# 6. Copier et exploiter
+searchsploit -m 50383
+python 50383.py http://target.com
+```
+
+### Workflow type 3 : Depuis CVE
+
+```bash
+# 1. CVE identifié (depuis advisory, news, etc.)
+# Exemple : CVE-2021-44228 (Log4Shell)
+
+# 2. Recherche
+searchsploit CVE-2021-44228
+
+# 3. Examiner tous les exploits
+searchsploit -x 50592
+
+# 4. Choisir le bon exploit (remote, local, dos)
+searchsploit CVE-2021-44228 --remote
+
+# 5. Copier
+searchsploit -m 50592
+
+# 6. Lire les instructions
+cat 50592.py
+```
+
+---
+
+## 8️⃣ Recherche par Application Web
+
+### CMS populaires
+
+```bash
+# WordPress
+searchsploit wordpress
+searchsploit "wordpress plugin"
+searchsploit wordpress 5.8
+
+# Joomla
+searchsploit joomla
+searchsploit "joomla 3.9"
+
+# Drupal
+searchsploit drupal
+searchsploit drupal 7.x
+
+# Magento
+searchsploit magento
+
+# PrestaShop
+searchsploit prestashop
+```
+
+### Applications web communes
+
+```bash
+# phpMyAdmin
+searchsploit phpmyadmin
+
+# Tomcat
+searchsploit tomcat
+searchsploit "apache tomcat 9.0"
+
+# Jenkins
+searchsploit jenkins
+
+# Struts
+searchsploit struts
+searchsploit "apache struts"
+
+# WebLogic
+searchsploit weblogic
+```
+
+---
+
+## 9️⃣ Mise à Jour de la Base
+
+### Update
+
+```bash
+# Mettre à jour la base de données
+searchsploit -u
+
+# Update avec git
+cd /usr/share/exploitdb
+git pull
+
+# Vérifier la version
+searchsploit -v
+```
+
+### Statistiques
+
+```bash
+# Nombre total d'exploits
+searchsploit -h | grep "exploits"
+
+# Compter par plateforme
+ls /usr/share/exploitdb/exploits/ | wc -l
+
+# Derniers exploits ajoutés
+ls -lt /usr/share/exploitdb/exploits/ | head -20
+```
+
+---
+
+## 🔟 Intégration avec Metasploit
+
+### Trouver module Metasploit
+
+```bash
+# Recherche avec indication Metasploit
+searchsploit apache --metasploit
+
+# Ou chercher "(Metasploit)" dans résultats
+searchsploit apache | grep Metasploit
+```
+
+### Conversion vers Metasploit
+
+```bash
+# 1. Trouver l'exploit
+searchsploit apache 2.4.49
+
+# 2. Noter le EDB-ID
+# Exploit: Apache HTTP Server 2.4.49 - Path Traversal & Remote Code Execution (RCE)
+# EDB-ID: 50383
+
+# 3. Chercher dans Metasploit
+msfconsole
+msf6 > search 50383
+msf6 > search apache 2.4.49
+
+# 4. Utiliser le module
+msf6 > use exploit/multi/http/apache_normalize_path_rce
+```
+
+---
+
+## 1️⃣1️⃣ Exemples Pratiques
+
+### Scénario 1 : Exploitation Apache
+
+```bash
+# Service découvert
+nmap -sV target.com -p 80
+# 80/tcp open  http    Apache httpd 2.4.49
+
+# Recherche
+searchsploit "apache 2.4.49"
+
+# Résultat
+# Apache HTTP Server 2.4.49 - Path Traversal & RCE | exploits/multiple/webapps/50383.py
+
+# Examiner
+searchsploit -x 50383
+
+# Copier
+searchsploit -m 50383
+
+# Exploiter
+python 50383.py target.com:80 "cat /etc/passwd"
+```
+
+### Scénario 2 : Exploitation vsftpd
+
+```bash
+# Service FTP backdooré
+nmap -sV target.com -p 21
+# 21/tcp open  ftp     vsftpd 2.3.4
+
+# Recherche
+searchsploit vsftpd 2.3.4
+
+# Résultat
+# vsftpd 2.3.4 - Backdoor Command Execution | exploits/unix/remote/17491.rb
+
+# C'est un module Metasploit
+msfconsole
+msf6 > use exploit/unix/ftp/vsftpd_234_backdoor
+msf6 > set RHOSTS target.com
+msf6 > exploit
+```
+
+### Scénario 3 : WordPress Plugin
+
+```bash
+# Site WordPress identifié
+wpscan --url http://target.com --enumerate p
+
+# Plugin vulnérable trouvé : wp-file-manager 6.0
+
+# Recherche
+searchsploit "wp file manager"
+
+# Résultat
+# WordPress Plugin File Manager 6.0-6.9 - RCE | exploits/php/webapps/51224.py
+
+# Copier et exploiter
+searchsploit -m 51224
+python 51224.py http://target.com
+```
+
+---
+
+## 1️⃣2️⃣ Recherches Avancées
+
+### Combinaisons complexes
+
+```bash
+# Version spécifique + type
+searchsploit "apache 2.4" --remote
+
+# Multiple critères
+searchsploit windows 10 --local --exclude=dos
+
+# Par language
+searchsploit apache python
+searchsploit windows perl
+searchsploit linux c
+
+# Par type de payload
+searchsploit reverse shell linux
+searchsploit bind shell windows
+searchsploit privilege escalation linux
+```
+
+### Regex et patterns
+
+```bash
+# Recherche avec wildcard
+searchsploit "apache 2.4.*"
+
+# Versions multiples
+searchsploit "apache 2.4.4[0-9]"
+
+# Recherche flexible
+searchsploit apache | grep -i "2\.4\."
+```
+
+---
+
+## 1️⃣3️⃣ Scripts d'Automatisation
+
+### Script de recherche automatique
+
+```bash
+#!/bin/bash
+# auto-searchsploit.sh
+
+TARGET=$1
+NMAP_FILE="nmap_scan.xml"
+
+echo "[+] Scanning $TARGET with Nmap..."
+nmap -sV -p- $TARGET -oX $NMAP_FILE
+
+echo "[+] Searching exploits with searchsploit..."
+searchsploit --nmap $NMAP_FILE | tee searchsploit_results.txt
+
+echo "[+] Extracting interesting exploits..."
+grep -i "remote\|rce\|shell" searchsploit_results.txt > interesting_exploits.txt
+
+echo "[+] Done! Check interesting_exploits.txt"
+```
+
+### Script de copie massive
+
+```bash
+#!/bin/bash
+# copy-exploits.sh
+
+# Lire les EDB-IDs depuis un fichier
+while read edb_id; do
+    echo "[*] Copying exploit $edb_id"
+    searchsploit -m $edb_id
+done < edb_ids.txt
+
+echo "[+] All exploits copied!"
+```
+
+### Script de recherche CVE
+
+```bash
+#!/bin/bash
+# cve-search.sh
+
+CVE_LIST="cve_list.txt"
+
+while read cve; do
+    echo "[*] Searching $cve"
+    searchsploit $cve | grep -v "Exploit Title" | grep -v "^---"
+done < $CVE_LIST
+```
+
+---
+
+## 1️⃣4️⃣ Astuces et Best Practices
+
+### Recherche efficace
+
+```bash
+# 1. Toujours commencer large
+searchsploit apache
+
+# 2. Affiner progressivement
+searchsploit apache 2.4
+
+# 3. Ajouter le type si trop de résultats
+searchsploit apache 2.4 --remote
+
+# 4. Vérifier le CVE
+searchsploit CVE-2021-41773
+```
+
+### Vérification de l'exploit
+
+```bash
+# Toujours examiner l'exploit avant utilisation
+searchsploit -x 50383
+
+# Vérifier :
+# - Version cible compatible
+# - Type d'exploit (remote/local)
+# - Requirements (modules Python, etc.)
+# - Instructions d'utilisation
+# - Payload et actions effectuées
+```
+
+### Organisation
+
+```bash
+# Créer un dossier par cible
+mkdir target_exploits
+cd target_exploits
+
+# Copier les exploits
+searchsploit -m 50383 50384
+
+# Renommer pour clarté
+mv 50383.py apache_rce.py
+mv 50384.py smb_exploit.py
+```
+
+---
+
+## 1️⃣5️⃣ Exploitation Multi-Services
+
+### Scan complet et exploitation
+
+```bash
+# 1. Scan Nmap complet
+nmap -sV -sC -p- target.com -oA target_scan
+
+# 2. Recherche automatique
+searchsploit --nmap target_scan.xml > exploits.txt
+
+# 3. Analyser les résultats
+cat exploits.txt
+
+# 4. Pour chaque service vulnérable :
+
+# Apache
+searchsploit "apache 2.4.49" -m 50383
+python 50383.py target.com
+
+# SSH (si version ancienne)
+searchsploit "openssh 7.4" -m 45233
+python 45233.py target.com
+
+# SMB
+searchsploit "samba 4.5" -m 45886
+python 45886.py target.com
+```
+
+---
+
+## 1️⃣6️⃣ Base de Données Locale
+
+### Structure
+
+```bash
+# Emplacement de la base
+/usr/share/exploitdb/
+
+# Structure
+exploitdb/
+├── exploits/          # Exploits classés par plateforme
+├── shellcodes/        # Shellcodes
+├── papers/            # Papers techniques
+└── files.csv          # Index de recherche
+```
+
+### Recherche manuelle
+
+```bash
+# Parcourir manuellement
+ls /usr/share/exploitdb/exploits/linux/remote/
+
+# Grep dans files.csv
+grep -i "apache" /usr/share/exploitdb/files.csv
+
+# Trouver exploits récents
+find /usr/share/exploitdb/exploits/ -type f -mtime -30
+```
+
+---
+
+## 1️⃣7️⃣ Cheatsheet Rapide
+
+### Commandes essentielles
+
+```bash
+# Recherche simple
+searchsploit service_name
+
+# Avec version
+searchsploit "service version"
+
+# Par CVE
+searchsploit CVE-2021-XXXXX
+
+# Remote exploits
+searchsploit service --remote
+
+# Examiner
+searchsploit -x EDB_ID
+
+# Copier
+searchsploit -m EDB_ID
+
+# Depuis Nmap
+searchsploit --nmap scan.xml
+
+# Update
+searchsploit -u
+
+# JSON output
+searchsploit service --json
+
+# Chemin complet
+searchsploit -p EDB_ID
+```
+
+---
+
+## 1️⃣8️⃣ Ressources
+
+### Documentation
+- Exploit-DB : https://www.exploit-db.com/
+- GitHub : https://github.com/offensive-security/exploitdb
+- Searchsploit Manual : `man searchsploit`
+
+### Alternatives
+- Metasploit Database : `msfconsole > search`
+- PacketStorm : https://packetstormsecurity.com/
+- 0day.today : https://0day.today/
+- GitHub : Recherche de PoCs
+
+### Bases CVE
+- CVE Details : https://www.cvedetails.com/
+- NVD : https://nvd.nist.gov/
+- MITRE CVE : https://cve.mitre.org/
+
+---
+
+## 💡 Tips Pro
+
+1. **Toujours mettre à jour** : `searchsploit -u`
+2. **Examiner avant copie** : `searchsploit -x`
+3. **Depuis Nmap** : `--nmap` pour automatisation
+4. **Filtrer par type** : `--remote` pour exploits distants
+5. **JSON output** : parsing automatisé avec `jq`
+6. **CVE lookup** : Toujours vérifier le CVE
+7. **Metasploit check** : Chercher si module MSF existe
+8. **Tester localement** avant exploitation
+9. **Backup exploits** : Copier dans dossier projet
+10. **Lire le code** : Comprendre avant exécuter
+
+---
+
+**🔎 Searchsploit est l'outil de recherche d'exploits le plus rapide. Base de données offline de 40,000+ exploits !**

