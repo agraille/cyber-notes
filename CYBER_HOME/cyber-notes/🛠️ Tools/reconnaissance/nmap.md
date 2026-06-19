@@ -23,6 +23,10 @@ Guide orienté **reconnaissance réseau** et **énumération** avec Nmap. Focus 
 ### Ping Scan (Host Discovery)
 
 ```bash
+
+#Sans resolution dns
+-n
+
 # Ping scan simple
 nmap -sn 192.168.1.0/24
 
@@ -286,20 +290,10 @@ nmap -p 53 --script dns-brute --script-args dns-brute.domain=target.com 192.168.
 
 ```bash
 # T0 - Paranoïaque (IDS evasion)
-nmap -T0 192.168.1.100
-
 # T1 - Sneaky (IDS evasion)
-nmap -T1 192.168.1.100
-
 # T2 - Polite (moins de bande passante)
-nmap -T2 192.168.1.100
-
 # T3 - Normal (défaut)
-nmap -T3 192.168.1.100
-
 # T4 - Aggressive (réseau rapide)
-nmap -T4 192.168.1.100
-
 # T5 - Insane (très rapide, perte de paquets)
 nmap -T5 192.168.1.100
 ```
@@ -376,12 +370,9 @@ nmap --randomize-hosts 192.168.1.0/24
 
 # Bad checksum
 nmap --badsum 192.168.1.100
-```
 
-```
 --stats-every=5s	Shows the progress of the scan every 5 seconds.
 ```
----
 
 ## 7️⃣ Output et Reporting
 
@@ -605,174 +596,6 @@ nmap -p 27017 -sV --script mongodb-* 192.168.1.100
 
 ---
 
-## 1️⃣2️⃣ Scripts Custom NSE
-
-### Créer un script NSE
-
-```lua
--- custom-script.nse
-local shortport = require "shortport"
-local http = require "http"
-
-description = [[
-Custom HTTP enumeration script
-]]
-
-author = "Your Name"
-license = "Same as Nmap"
-categories = {"discovery", "safe"}
-
-portrule = shortport.http
-
-action = function(host, port)
-    local response = http.get(host, port, "/")
-    if response.status == 200 then
-        return "Server is up"
-    end
-end
-```
-
-**Utilisation**
-```bash
-nmap --script custom-script.nse -p 80 192.168.1.100
-```
-
----
-
-## 1️⃣3️⃣ Automatisation
-
-### Scan automatisé complet
-
-```bash
-#!/bin/bash
-# nmap-auto-scan.sh
-
-TARGET=$1
-OUTPUT_DIR="nmap-scan-$(date +%Y%m%d-%H%M%S)"
-
-mkdir -p $OUTPUT_DIR
-cd $OUTPUT_DIR
-
-echo "[+] Starting scan on $TARGET"
-
-# 1. Quick scan
-echo "[*] Quick scan..."
-nmap -sS -sV -T4 --top-ports 1000 $TARGET -oA quick-scan
-
-# 2. Full TCP scan
-echo "[*] Full TCP scan..."
-nmap -sS -sV -sC -p- -T4 $TARGET -oA full-tcp-scan
-
-# 3. UDP scan
-echo "[*] UDP top ports..."
-nmap -sU --top-ports 100 $TARGET -oA udp-scan
-
-# 4. Vuln scan
-echo "[*] Vulnerability scan..."
-nmap -sV --script vuln $TARGET -oA vuln-scan
-
-# 5. Generate HTML report
-xsltproc full-tcp-scan.xml -o report.html
-
-echo "[+] Scan complete! Results in $OUTPUT_DIR"
-```
-
-### Scan multi-cibles
-
-```bash
-#!/bin/bash
-# multi-target-scan.sh
-
-TARGETS="targets.txt"
-
-while IFS= read -r target; do
-    echo "[+] Scanning $target"
-    nmap -sS -sV -sC -T4 --top-ports 1000 $target -oA "scan-$target"
-done < "$TARGETS"
-```
-
----
-
-## 1️⃣4️⃣ Cheatsheet Rapide
-
-### Découverte
-
-```bash
-nmap -sn 192.168.1.0/24                    # Ping scan
-nmap -Pn 192.168.1.100                     # Skip ping
-nmap -PR 192.168.1.0/24                    # ARP scan
-```
-
-### Scan de ports
-
-```bash
-nmap -sS 192.168.1.100                     # SYN scan
-nmap -sT 192.168.1.100                     # Connect scan
-nmap -sU 192.168.1.100                     # UDP scan
-nmap -p- 192.168.1.100                     # All ports
-nmap --top-ports 100 192.168.1.100         # Top 100
-```
-
-### Détection
-
-```bash
-nmap -sV 192.168.1.100                     # Version detection
-nmap -O 192.168.1.100                      # OS detection
-nmap -A 192.168.1.100                      # Aggressive
-```
-
-### Scripts
-
-```bash
-nmap -sC 192.168.1.100                     # Default scripts
-nmap --script vuln 192.168.1.100           # Vuln scripts
-nmap --script http-enum 192.168.1.100      # Specific script
-```
-
-### Performance
-
-```bash
-nmap -T4 192.168.1.100                     # Timing template
-nmap -F 192.168.1.100                      # Fast scan
-nmap --max-rate 1000 192.168.1.100         # Rate limit
-```
-
-### Output
-
-```bash
-nmap -oN scan.txt 192.168.1.100            # Normal
-nmap -oX scan.xml 192.168.1.100            # XML
-nmap -oG scan.gnmap 192.168.1.100          # Greppable
-nmap -oA scan 192.168.1.100                # All formats
-```
-
-### Évasion
-
-```bash
-nmap -f 192.168.1.100                      # Fragmentation
-nmap -D RND:10 192.168.1.100               # Decoys
-nmap --spoof-mac 0 192.168.1.100           # MAC spoofing
-```
-
----
-
-## 1️⃣5️⃣ Ressources
-
-### Documentation
-- Official Docs : https://nmap.org/docs.html
-- NSE Library : https://nmap.org/nsedoc/
-- Nmap Book : https://nmap.org/book/
-
-### Scripts NSE
-- Default scripts : /usr/share/nmap/scripts/
-- Script database : https://nmap.org/nsedoc/index.html
-
-### Tutoriels
-- Nmap.org : https://nmap.org/book/man.html
-- HackTricks : https://book.hacktricks.xyz/pentesting/pentesting-network
-- TryHackMe : Nmap room
-
----
 
 ## 💡 Tips Pro
 

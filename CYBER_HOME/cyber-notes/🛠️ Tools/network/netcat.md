@@ -18,42 +18,6 @@ Fonctionnalités:
 ├── Debugging réseau
 └── Bannière grabbing
 ```
-
-### Versions de Netcat
-
-```bash
-# Vérifier la version installée
-nc -h
-# ou
-which nc && ls -la $(which nc)
-
-# Variantes:
-# - netcat-traditional (nc.traditional)  → Original, supporte -e
-# - netcat-openbsd (nc.openbsd)          → Plus sécurisé, pas de -e
-# - ncat (de Nmap)                        → Plus de fonctionnalités
-# - pwncat                                → Pour pentest avancé
-```
-
----
-
-## 🔧 Installation
-
-```bash
-# Debian/Ubuntu/Kali
-apt install netcat-traditional   # Avec -e
-apt install netcat-openbsd      # Sans -e (plus sécurisé)
-
-# Installer ncat (recommandé)
-apt install nmap   # ncat inclus
-
-# Sélectionner la version par défaut
-update-alternatives --config nc
-
-# Vérifier
-nc -h
-ncat --version
-```
-
 ---
 
 ## 1️⃣ Connexions Basiques
