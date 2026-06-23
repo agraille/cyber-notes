@@ -39,22 +39,22 @@ cyber-notes/
 
 | Catégorie | Services |
 |----------------------|-------------------------------|
-| **Active Directory** | AD enumeration & exploitation |
+| **Active Directory** | AD enumeration & exploitation.. |
 | **Cloud**            | AWS, Azure, GCP               |
-| **Bases de données** | MySQL, MSSQL, PostgreSQL, MongoDB, SQL Injection |
-| **Réseau**           | SSH, FTP, DNS, SMTP, Telnet, Pivoting |
-| **File Sharing**     | SMB, NFS |
-| **Services**         | LDAP, RDP, SNMP, WinRM |
+| **Bases de données** | MySQL, MSSQL, PostgreSQL, MongoDB, SQL Injection... |
+| **Réseau**           | SSH, FTP, DNS, SMTP, Telnet, Pivoting... |
+| **File Sharing**     | SMB, NFS... |
+| **Services**         | LDAP, RDP, SNMP, WinRM... |
 
 ### 🎯 Techniques d'exploitation
 
 | Catégorie | Contenu |
 |--------------------------|--------------------------------------------------------------|
 | **Web**                  | XSS, SSRF, SSTI, XXE, CSRF, SQLi, IDOR, JWT, OAuth, Deserialization, Cache Poisoning, HTTP Smuggling, Race Conditions, 2FA Bypass… |
-| **Binary**               | Buffer Overflow, Format String |
-| **Privilege Escalation** | Linux, Windows, Containers, Linux Capabilities, Unix Sockets |
-| **Persistence**          | Backdoors |
-| **Supply Chain**         | Dependency Confusion, NPM attacks |
+| **Binary**               | Buffer Overflow, Format String... |
+| **Privilege Escalation** | Linux, Windows, Containers, Linux Capabilities, Unix Sockets... |
+| **Persistence**          | Backdoors... |
+| **Supply Chain**         | Dependency Confusion, NPM attacks... |
 
 ### 🛠️ Outils documentés
 
