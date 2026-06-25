@@ -1,4 +1,4 @@
-Scan ip : 
+Scan ip : 10.129.68.215
 
 
 Sous Domaine :
@@ -11,17 +11,6 @@ Tools et versions:
 
 
 CMD:
-
-
-
-
-
-
-
-
-
-
-
 
 
 
