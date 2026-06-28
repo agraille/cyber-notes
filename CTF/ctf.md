@@ -1,30 +1,4 @@
-Scan ip : 10.129.68.215
-
-
-Sous Domaine :
-
-
-USER:
-
-
-Tools et versions:
-
-
-CMD:
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+Scan ip : 10.129.30.75
 
 
 
