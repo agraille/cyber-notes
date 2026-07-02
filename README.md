@@ -29,7 +29,7 @@ cyber-notes/
         ├── 🌐 services/         # Exploitation par service (AD, cloud, BDD, réseau…)
         ├── 🎯 techniques/       # Techniques d'exploitation (web, binary, privesc…)
         └── 🛠️ Tools/            # Outils offensifs documentés
-	├── 5️⃣ Cyber_defense/        # Cours et supports (linux privesc, etc.)
+	├── 5️⃣ Cyber_defense/
         └── 🛠️ Tools/            # Outils defensifs documentés
 
 
