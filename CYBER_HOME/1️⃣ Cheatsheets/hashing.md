@@ -514,61 +514,6 @@ hashcat -m 10900 "sha256:600000:u/+LBBOUnac=:YshQbDDqCAzy21EdK5OfZBJD1Ne4rXa1VgP
 
 ---
 
-## 6️⃣ Cheatsheet Rapide
-
-```bash
-# ═══════════════════════════════
-# IDENTIFIER
-# ═══════════════════════════════
-hashid <hash>
-haiti <hash>
-hash-identifier
-
-# ═══════════════════════════════
-# GÉNÉRER DES HASHES
-# ═══════════════════════════════
-echo -n "text" | md5sum
-echo -n "text" | sha1sum
-echo -n "text" | sha256sum
-echo -n "text" | sha512sum
-echo -n "text" | openssl dgst -sha256
-
-# ═══════════════════════════════
-# MANIPULATION BYTES
-# ═══════════════════════════════
-# base64 encode/decode
-echo -n "text" | base64
-echo "dGV4dA==" | base64 -d
-
-# hex dump
-echo -n "text" | xxd
-echo -n "text" | xxd -p           # hex pur
-echo "74657874" | xxd -r -p       # hex → ASCII
-
-# bytes bruts → hex (Python)
-python3 -c "import base64; print(base64.b64decode('HASH_B64').hex())"
-
-# ═══════════════════════════════
-# HASHCAT
-# ═══════════════════════════════
-hashcat -m 0     hash.txt rockyou.txt        # MD5
-hashcat -m 100   hash.txt rockyou.txt        # SHA1
-hashcat -m 1000  hash.txt rockyou.txt        # NTLM
-hashcat -m 3200  hash.txt rockyou.txt        # bcrypt
-hashcat -m 10900 "sha256:N:sel:hash" wl.txt  # PBKDF2
-hashcat -m 5600  hash.txt rockyou.txt        # NetNTLMv2
-hashcat <options> --show                      # Afficher résultats
-
-# ═══════════════════════════════
-# OPENSSL
-# ═══════════════════════════════
-openssl rand -hex 32                         # Sel aléatoire
-openssl dgst -sha256 fichier.txt             # Hash fichier
-openssl base64 -d <<< "hash_b64"            # Décoder b64
-```
-
----
-
 ## 📚 Ressources
 
 - **Hashcat modes** : https://hashcat.net/wiki/doku.php?id=hashcat
@@ -579,5 +524,3 @@ openssl base64 -d <<< "hash_b64"            # Décoder b64
 - **PayloadsAllTheThings - Hashes** : https://github.com/swisskyrepo/PayloadsAllTheThings
 
 ---
-
-**Tags:** `#hash #md5 #sha256 #bcrypt #pbkdf2 #ntlm #hashcat #base64 #xxd #openssl #cracking #ctf`

