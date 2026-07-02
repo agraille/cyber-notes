@@ -19,7 +19,7 @@ Le contenu couvre l'exploitation web, réseau, Active Directory, la crypto, le r
 ```
 cyber-notes/
 ├── CTF/                        # Dossier perso pour CTF
-│   └── SCRIPT/
+│   └── SCRIPT/					# Scripts utile
 │
 └── CYBER_HOME/
     ├── 1️⃣  Cheatsheets/         # Références rapides (bash, réseau, python, reverse shells…)
@@ -29,6 +29,10 @@ cyber-notes/
         ├── 🌐 services/         # Exploitation par service (AD, cloud, BDD, réseau…)
         ├── 🎯 techniques/       # Techniques d'exploitation (web, binary, privesc…)
         └── 🛠️ Tools/            # Outils offensifs documentés
+	├── 5️⃣ Cyber_defense/        # Cours et supports (linux privesc, etc.)
+        └── 🛠️ Tools/            # Outils defensifs documentés
+
+
 ```
 
 ---
