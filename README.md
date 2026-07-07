@@ -25,13 +25,11 @@ cyber-notes/
     ├── 1️⃣  Cheatsheets/         # Références rapides (bash, réseau, python, reverse shells…)
     ├── 2️⃣  Schema/              # Schémas d'attaque (SSH pivoting, AD, web)
     ├── 3️⃣  Cyber_cours/         # Cours et supports (linux privesc, etc.)
-    └── 4️⃣  Cyber_exploit/
+    ├── 4️⃣  Cyber_exploit/
         ├── 🌐 services/         # Exploitation par service (AD, cloud, BDD, réseau…)
         ├── 🎯 techniques/       # Techniques d'exploitation (web, binary, privesc…)
         └── 🛠️ Tools/            # Outils offensifs documentés
-	├── 5️⃣ Cyber_defense/
-        └── 🛠️ Tools/            # Outils defensifs documentés
-
+	└── 5️⃣ Cyber_defense/        # Theorie des principes de defense
 
 ```
 

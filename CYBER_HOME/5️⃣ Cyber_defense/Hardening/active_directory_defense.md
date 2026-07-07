@@ -63,12 +63,11 @@ La règle absolue : un compte Tier 0 ne doit jamais s'authentifier sur une machi
 ### Événements à surveiller en priorité
 
 | Event ID | Signification |
-|---|---|
-| 4768 | Demande de TGT (authentification initiale) |
-| 4769 | Demande de TGS (accès à un service) |
-| 4776 | Validation de credentials (NTLM) |
-| 4662 | Accès à un objet AD (réplication, ACL) |
-| 5136 | Modification d'un objet AD (ex: ajout à un groupe privilégié) |
+| 4768     | Demande de TGT (authentification initiale) |
+| 4769     | Demande de TGS (accès à un service) |
+| 4776     | Validation de credentials (NTLM) |
+| 4662     | Accès à un objet AD (réplication, ACL) |
+| 5136     | Modification d'un objet AD (ex: ajout à un groupe privilégié) |
 
 ## Documentation officielle
 
