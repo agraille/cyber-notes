@@ -1,27 +1,18 @@
 # Hardening Windows
 
-## 1. Le concept
+## C'est quoi
 
-### Où ça se situe dans NIST
+Le durcissement Windows consiste à **désactiver les vieux protocoles exploitables** par défaut, limiter les privilèges, et appliquer des configurations restrictives via GPO. L'objectif : réduire la surface d'attaque plutôt que de compter sur la détection après.
 
-Le durcissement système relève de la fonction **Protect (PR)** du NIST CSF, principalement des catégories **PR.AC (Access Control)** et **PR.PT (Protective Technology)**. Le principe sous-jacent que pousse le NIST est celui du **moindre privilège et de la réduction de surface d'attaque** : chaque fonctionnalité, protocole ou privilège actif par défaut qui n'est pas strictement nécessaire est une opportunité offerte à un attaquant.
+**Failles par défaut courantes** :
+- **SMBv1** (WannaCry, EternalBlue) — contient des RCE, reste souvent activé pour compatibilité
+- **NTLM** (pass-the-hash, relay attacks) — plus faible que Kerberos
+- **LLMNR/NBT-NS** (responder, poisoning) — répond à n'importe quelle requête réseau
+- **Même mot de passe local partout** (pass-the-hash dans le parc) — une machine = toutes les machines
 
-### C'est quoi concrètement
+---
 
-Le durcissement Windows consiste à désactiver les protocoles hérités exploitables, limiter les privilèges disponibles, et appliquer des configurations restrictives à l'échelle du parc via GPO (Group Policy Objects), plutôt que de compter uniquement sur des outils de détection pour réagir après coup.
-
-## 2. Pourquoi ça marche (le mécanisme)
-
-La majorité des attaques qui touchent un environnement Windows/Active Directory n'exploitent pas une faille logicielle complexe, mais des **défauts de configuration par défaut**, conçus à une époque où la compatibilité ascendante primait sur la sécurité :
-
-- **SMBv1** contient des failles connues et exploitables (comme celle utilisée par WannaCry), mais reste souvent activé par défaut pour la compatibilité avec de très vieux systèmes
-- **NTLM** est un protocole d'authentification plus faible que Kerberos, vulnérable au relais (un attaquant intercepte une tentative d'authentification et la rejoue vers un autre système)
-- **LLMNR/NBT-NS** sont des protocoles de résolution de noms qui répondent à n'importe quelle requête sur le réseau local, ce qu'un attaquant peut détourner pour se faire passer pour un serveur légitime et intercepter des identifiants
-- La **réutilisation du même mot de passe administrateur local** sur tout le parc signifie qu'une seule machine compromise donne accès à toutes les autres (technique dite du "pass-the-hash")
-
-Désactiver ce qui n'est pas nécessaire et cloisonner les privilèges élimine ces chemins d'attaque à la racine, plutôt que d'espérer les détecter une fois exploités.
-
-## 3. Mise en œuvre — le chemin concret
+## Mise en œuvre — le chemin concret
 
 ### Désactiver les protocoles legacy
 

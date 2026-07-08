@@ -1,26 +1,20 @@
 # DFIR — Forensics Mémoire
 
-## 1. Le concept
+## C'est quoi
 
-### Où ça se situe dans NIST
+L'analyse forensique mémoire consiste à examiner une copie de la RAM d'une machine compromise pour retrouver des **artefacts invisibles sur disque** :
+- Processus injectés (en mémoire seulement)
+- Malware fileless (jamais écrit sur disque)
+- Clés de chiffrement en mémoire
+- Connexions réseau actives au moment exact
 
-Le **NIST SP 800-86 (Guide to Integrating Forensic Techniques into Incident Response)** est la référence qui structure la démarche forensique dans un contexte de réponse à incident. Il insiste sur un principe central : **l'ordre de volatilité des données**. Certaines preuves disparaissent dès qu'on éteint ou redémarre une machine — la mémoire vive en fait partie. C'est pourquoi elle doit être capturée en tout premier, avant toute autre action d'investigation ou de remédiation.
+**Clé** : la mémoire est **volatile** — elle disparaît au redémarrage. C'est pourquoi on doit la capturer en **premier**, avant toute autre action.
 
-Dans le NIST CSF, cette activité relève de la fonction **Respond**, catégorie **RS.AN (Analysis)** : comprendre précisément ce qui s'est passé pour pouvoir répondre efficacement.
+**IOC clé** : zones mémoire RWX (ReadWriteExecute) = signe d'injection de code.
 
-### C'est quoi concrètement
+---
 
-L'analyse forensique mémoire consiste à examiner une copie de la RAM d'une machine compromise pour retrouver des artefacts qui n'existent jamais sur disque : processus injectés en mémoire, malware qui ne touche jamais le disque (« fileless »), clés de chiffrement encore présentes en mémoire, connexions réseau actives au moment exact de la capture.
-
-## 2. Pourquoi ça marche (le mécanisme)
-
-Un système d'exploitation maintient en permanence, en mémoire, l'état complet de ce qu'il exécute : la liste des processus, leurs connexions réseau, le code qu'ils ont chargé, y compris du code qui n'a jamais été écrit sur le disque. Un attaquant qui veut éviter la détection a intérêt à agir uniquement en mémoire, car les outils antivirus classiques scannent surtout le disque.
-
-Ça crée une opportunité pour le défenseur : tant que la machine n'a pas été éteinte, cette activité invisible sur disque reste visible en mémoire. Un dump mémoire capturé au bon moment révèle donc des attaques qu'une simple analyse du disque ne verrait jamais — d'où l'urgence de le faire *avant* de redémarrer ou d'isoler brutalement une machine.
-
-L'indicateur le plus révélateur d'une injection de code est la présence de zones mémoire marquées à la fois **inscriptibles et exécutables (RWX)** : un programme légitime n'a normalement pas besoin d'exécuter du code qu'il vient d'écrire lui-même en mémoire — c'est précisément ce que fait une injection.
-
-## 3. Mise en œuvre — le chemin concret
+## Mise en œuvre — le chemin concret
 
 ### Acquisition de la mémoire (avant toute autre action)
 

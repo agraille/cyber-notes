@@ -1,27 +1,21 @@
 # Hardening Linux
 
-## 1. Le concept
+## C'est quoi
 
-### Où ça se situe dans NIST
+Le durcissement Linux repose sur trois piliers :
 
-Comme pour Windows, le durcissement Linux relève de la fonction **Protect (PR)** du NIST CSF — catégories **PR.AC (Access Control)** pour la partie authentification, et **PR.PT (Protective Technology)** pour le confinement des applications et la traçabilité. Le principe directeur reste le même : réduire ce qu'un attaquant peut atteindre, et tracer ce qu'il fait s'il y parvient malgré tout.
+1. **Sécuriser SSH** (point d'entrée le plus exposé) — clés plutôt que mots de passe, limiter les tentatives
+2. **Confiner les processus** (AppArmor/SELinux) — limiter ce qu'un programme compromis peut faire
+3. **Tracer l'activité** (auditd) — transforme actions invisibles en événements détectables
 
-### C'est quoi concrètement
+**Enjeux** :
+- **SSH par mot de passe** = bruteforce possible, clés = sûr
+- **Pas de confinement** = une app web exploitée = accès root possible
+- **Pas de traçabilité** = compromission invisible
 
-Le durcissement Linux repose sur trois piliers complémentaires :
-- Sécuriser l'accès distant (SSH), point d'entrée le plus exposé sur un serveur Linux
-- Confiner les processus (AppArmor ou SELinux) pour limiter les dégâts en cas de compromission d'une application
-- Tracer l'activité système (auditd) pour permettre la détection et l'investigation
+---
 
-## 2. Pourquoi ça marche (le mécanisme)
-
-**SSH par mot de passe** est vulnérable au bruteforce : un attaquant peut essayer des combinaisons indéfiniment tant qu'il n'est pas bloqué. L'authentification par clé élimine ce risque puisqu'il n'y a plus de secret devinable par force brute.
-
-**Le confinement applicatif (AppArmor/SELinux)** répond à une réalité simple : même une application bien maintenue peut contenir une faille inconnue. Sans confinement, un processus compromis (par exemple un serveur web exploité) hérite de tous les droits de l'utilisateur qui l'exécute, et peut lire/écrire n'importe où sur le système. Un profil de confinement définit explicitement ce qu'un processus a le droit de faire (quels fichiers lire, quels réseaux joindre), donc même exploité, il reste enfermé dans ce périmètre — c'est le principe du **moindre privilège appliqué au niveau processus**, pas seulement au niveau utilisateur.
-
-**auditd** ne prévient rien en lui-même, mais transforme des actions invisibles (une modification de `/etc/passwd`, un usage de `sudo`) en événements journalisés exploitables pour la détection — sans cette instrumentation, ces actions ne laissent aucune trace.
-
-## 3. Mise en œuvre — le chemin concret
+## Mise en œuvre — le chemin concret
 
 ### Durcir l'accès SSH
 

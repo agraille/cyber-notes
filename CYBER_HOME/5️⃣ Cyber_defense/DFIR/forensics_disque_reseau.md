@@ -1,24 +1,19 @@
 # DFIR — Forensics Disque & Réseau
 
-## 1. Le concept
+## C'est quoi
 
-### Où ça se situe dans NIST
+**Forensics disque** : reconstruction d'une chronologie complète des actions passées sur un système (fichiers créés/modifiés/exécutés, même après suppression) via les métadonnées du système de fichiers.
 
-Comme la forensics mémoire, cette activité s'appuie sur le **NIST SP 800-86**, qui structure la démarche d'investigation forensique en contexte de réponse à incident, et relève de la fonction **Respond (RS.AN — Analysis)** du NIST CSF. Là où la mémoire capture un instant présent, le disque et le réseau permettent de reconstruire le **déroulé temporel complet** d'une intrusion : quand l'attaquant est arrivé, ce qu'il a fait, dans quel ordre.
+**Forensics réseau** : rejouer et comprendre le trafic capturé pendant l'incident — qui a communiqué avec qui, quand, et quoi a été échangé.
 
-### C'est quoi concrètement
+**Enjeux** :
+- Disque = timeline = preuve de quand/quoi s'est passé
+- Réseau = preuve de C2, exfiltration, communication avec attaquant
+- Combiné = reconstruire l'attaque complète du début à la fin
 
-L'analyse disque reconstruit une chronologie précise des actions passées sur un système (fichiers créés, modifiés, exécutés — même après suppression). L'analyse réseau permet de rejouer et comprendre le trafic capturé pendant l'incident, pour savoir avec qui la machine compromise a communiqué et ce qui a été échangé.
+---
 
-## 2. Pourquoi ça marche (le mécanisme)
-
-Un système de fichiers moderne ne se contente pas de stocker des fichiers : il maintient en permanence des métadonnées sur chaque action (date de création, de modification, d'accès), et Windows conserve en plus des traces d'exécution passées même si le programme a été supprimé depuis (le mécanisme de Prefetch, conçu à l'origine pour accélérer les lancements d'applications, devient ainsi une preuve d'exécution que l'attaquant ne pense pas toujours à effacer).
-
-En alignant toutes ces métadonnées sur un seul axe temporel (une « timeline »), on peut reconstituer précisément la séquence d'une attaque, même longtemps après les faits, à condition que les traces n'aient pas été écrasées par une utilisation normale du disque.
-
-Côté réseau, un pcap brut (capture de paquets) est difficile à exploiter directement à grande échelle. Des outils comme Zeek le retraitent en logs structurés par protocole (une ligne par connexion, par requête DNS, par transaction HTTP), ce qui permet de chercher des patterns (comme une exfiltration de données déguisée en requêtes DNS) bien plus rapidement qu'en lisant le trafic paquet par paquet.
-
-## 3. Mise en œuvre — le chemin concret
+## Mise en œuvre — le chemin concret
 
 ### Construire une timeline disque avec Plaso
 
