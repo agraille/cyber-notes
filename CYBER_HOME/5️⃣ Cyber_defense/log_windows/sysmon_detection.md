@@ -33,17 +33,38 @@ Configs de référence :
 Logs consultables dans : `Observateur d'événements > Applications and Services Logs > Microsoft > Windows > Sysmon > Operational`
 
 ## Table des Event IDs Sysmon utiles
-
+ 
 | Event ID | Type | Usage détection |
 |---|---|---|
 | 1 | Process Create | Création de process, avec ligne de commande et hash |
+| 2 | File Creation Time Changed | Timestomping — un attaquant modifie la date de création pour masquer un artefact |
 | 3 | Network Connection | Connexions réseau sortantes (C2, exfiltration) |
+| 4 | Sysmon Service State Changed | Sysmon démarré/arrêté — un arrêt est un signal fort de tentative d'evasion |
+| 5 | Process Terminated | Fin de process — corrélation avec l'Event ID 1 pour reconstituer une timeline complète |
+| 6 | Driver Loaded | Chargement de driver — détection de rootkits ou d'outils type Mimikatz-driver / BYOVD |
 | 7 | Image Loaded | Chargement de DLL — clé pour DLL hijacking et détection .NET |
 | 8 | CreateRemoteThread | Injection de code dans un autre process |
+| 9 | RawAccessRead | Lecture brute d'un disque (contournement des ACL fichiers) — typique de dump de SAM/NTDS |
 | 10 | Process Access | Accès à un process (LSASS pour credential dumping) |
 | 11 | File Create | Création de fichier |
+| 12 | Registry Event (Create/Delete) | Création/suppression de clé de registre — persistance, désactivation de sécurité |
 | 13 | Registry Value Set | Persistance via registre |
+| 14 | Registry Event (Rename) | Renommage de clé/valeur registre — évasion de règles basées sur un nom fixe |
+| 15 | FileCreateStreamHash | Création d'Alternate Data Stream — souvent lié au Mark of the Web (fichier téléchargé) |
+| 16 | Sysmon Config Change | Modification de la configuration Sysmon — signal fort de tentative de tampering par l'attaquant |
+| 17 | Pipe Created | Création de named pipe — utilisé par certains frameworks C2 (Cobalt Strike, etc.) |
+| 18 | Pipe Connected | Connexion à un named pipe — corrélation avec l'Event ID 17 |
+| 19 | WMI Event Filter | Création d'un filtre WMI — persistance WMI (WMI subscription) |
+| 20 | WMI Event Consumer | Création d'un consumer WMI — persistance WMI, exécution de payload au déclenchement |
+| 21 | WMI Event Consumer To Filter | Liaison filtre/consumer WMI — complète la chaîne de persistance WMI |
 | 22 | DNS Query | Requêtes DNS, utile pour C2/tunneling |
+| 23 | File Delete (archived) | Suppression de fichier avec copie archivée par Sysmon — anti-anti-forensics |
+| 24 | Clipboard Change | Changement du presse-papier — exfiltration de données, credential harvesting |
+| 25 | Process Tampering | Process hollowing / herpaderping — technique d'évasion avancée |
+| 26 | File Delete (logged) | Suppression de fichier journalisée sans archivage (léger, sans copie) |
+| 27 | File Block Executable | Blocage d'un exécutable par Sysmon selon règles de config |
+| 28 | File Block Shredding | Blocage d'une tentative d'écrasement/déchiquetage de fichier |
+| 29 | File Executable Detected | Détection d'écriture d'un fichier exécutable sur disque |
 
 Activer l'Event ID 7 (désactivé par défaut car bruyant) — dans le XML de config, passer le `RuleGroup ImageLoad` de `include` à `exclude` (sans règle d'exclusion = tout est capturé) :
 

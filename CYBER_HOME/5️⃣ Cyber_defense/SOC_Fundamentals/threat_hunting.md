@@ -1,65 +1,392 @@
-# Threat Hunting
+# Threat Hunting — Méthodologie & Bonnes Pratiques
 
-## 1. Le concept
+## C'est quoi
 
-### Où ça se situe dans NIST
+Le **threat hunting** est une recherche **proactive et systématique** de compromissions qui n'ont **pas déclenché d'alerte automatique**. Contrairement à la détection classique (rule-based), ici c'est un humain qui formule l'hypothèse, définit la chasse, et trouve les preuves.
 
-Le threat hunting relève de la fonction **Detect** du NIST CSF, catégorie **DE.AE (Anomalies and Events)**, mais dans sa forme la plus mature : au lieu d'attendre qu'une règle automatique déclenche une alerte, l'analyste part chercher activement des signes de compromission qui n'ont *pas* déclenché d'alerte. Le NIST considère la détection continue et l'amélioration itérative comme un objectif central — le threat hunting en est l'expression la plus proactive.
+**Différence clé** :
+- **Détection** : attendre qu'une règle se déclenche
+- **Threat Hunting** : chercher activement ce que les règles ratent
 
-**Point clé** : toute règle de détection a des angles morts (une technique qu'elle ne couvre pas, une variante qu'elle ne reconnaît pas). Le threat hunting part du principe qu'un attaquant compétent peut passer sous les règles existantes, et cherche à le débusquer manuellement.
+**Enjeu** : tout attaquant capable cherche à contourner les défenses connues. Le threat hunting comble ce gap.
 
-### C'est quoi concrètement
+---
 
-Le threat hunting est une recherche proactive de compromission, pilotée par un humain, qui part d'une hypothèse plutôt que d'une alerte automatique. C'est la différence fondamentale avec la détection classique : ici, l'humain décide où chercher, au lieu de réagir à ce qu'une règle a déjà repéré.
+## Méthodologie Hypothesis-Driven (la fondation)
 
-## 2. Pourquoi ça marche (le mécanisme)
+La bonne approche repose sur **5 étapes structurées** :
 
-Les attaquants avancés savent que les défenseurs utilisent des règles de détection connues, et adaptent leurs techniques pour les éviter (utilisation d'outils légitimes déjà présents sur le système plutôt que de malware détectable, fragmentation des actions dans le temps pour éviter les seuils d'alerte). Une approche purement basée sur des règles automatiques ne peut, par définition, détecter que ce qu'elle a été programmée à reconnaître.
+### Étape 1 : Formuler une hypothèse claire
 
-Le threat hunting comble ce vide en posant une hypothèse fondée sur des techniques d'attaque connues ("si un attaquant voulait faire du mouvement latéral sans se faire repérer, comment s'y prendrait-il sur ce système ?") puis en allant chercher des preuves de cette hypothèse dans les données brutes, même en l'absence d'alerte. Si l'hypothèse se confirme, elle devient une piste d'investigation immédiate ; si elle échoue, elle enrichit la connaissance du terrain pour la prochaine chasse.
+Une hypothèse doit être :
+- **Testable** : on peut chercher des preuves pour la confirmer/infirmer
+- **Actuelle** : basée sur des menaces réelles et observables
+- **Spécifique** : pas vague, pas générique
 
-## 3. Mise en œuvre — le chemin concret
-
-### La démarche hypothesis-driven
-
-1. **Formuler une hypothèse** précise, par exemple : "un attaquant utilise l'injection de processus pour évader les outils de détection"
-2. **Identifier les données nécessaires** pour vérifier cette hypothèse (quels logs, quelle télémétrie permettent de l'infirmer ou de la confirmer)
-3. **Chasser** : exécuter des requêtes ciblées sur les données identifiées
-4. **Conclure** : si une preuve est trouvée, la chasse devient une investigation d'incident ; sinon, on documente et on affine l'hypothèse suivante
-5. **Capitaliser** : si le pattern cherché s'avère être une menace réelle et récurrente, transformer la requête manuelle en règle de détection automatisée, pour ne plus avoir à la rechasser à la main
-
-### Exemples de requêtes de chasse
-
-**Injection de processus** — repérer un process qui écrit dans la mémoire d'un autre process que lui-même (Sysmon Event ID 8) :
+**Bonnes hypothèses** :
 ```
-EventID=8 AND SourceImage!=TargetImage
-```
+❌ Mauvais  : "On est attaqué"
+✅ Bon     : "Un utilisateur execute PowerShell -enc depuis une machine autre que son poste habituel"
 
-**Mouvement latéral via PsExec** — recherche d'un service temporaire au nom caractéristique de l'outil :
-```powershell
-Get-WinEvent -FilterHashtable @{LogName='System'; ID=7045} |
-  Where-Object { $_.Message -match 'PSEXESVC' }
+❌ Mauvais  : "Quelqu'un modifie des registre"
+✅ Bon     : "Un process non-SYSTEM modifie HKEY_LOCAL_MACHINE\Software\Policies\Microsoft\Windows\Defender"
+
+❌ Mauvais  : "Il y a du mouvement latéral"
+✅ Bon     : "Account Discovery (net view) suivi de Remote Service (psexec) par le même user dans une fenêtre de 10min"
 ```
 
-**Mouvement latéral via WMI** — un parent process `wmiprvse.exe` menant à une exécution suspecte :
-```
-EventID=4688 AND ParentImage="*\wmiprvse.exe" AND NOT Image="*\WmiPrvSE.exe"
-```
+### Étape 2 : Identifier les données nécessaires
 
-**Living-off-the-land** — usage de binaires légitimes (PowerShell notamment) avec des arguments d'obfuscation :
-```
-EventID=4688 AND (CommandLine="*-enc*" OR CommandLine="*-EncodedCommand*")
-```
+Demande-toi : "Quels logs/données me permettront de tester cette hypothèse ?"
 
-**Beaconing réseau** — connexions périodiques et régulières vers une même destination externe, signe typique d'un C2 :
+Exemple hypothèse : "PowerShell -enc exécuté hors des heures normales"
+
+Données nécessaires :
+- ✅ Event ID 4688 (process creation avec CommandLine détaillée)
+- ✅ Horodatage précis
+- ✅ Baseline des horaires de travail normaux par utilisateur
+- ✗ Logs Sysmon (trop détaillés pour cette chasse)
+
+### Étape 3 : Exécuter la chasse (requête)
+
+Construire une requête sur le SIEM pour récupérer exactement ce dont tu as besoin.
+
+Exemple Splunk SPL :
+
 ```spl
-index=netflow dest_ip!=<plage_interne>
-| bucket _time span=1h
-| stats count by _time, dest_ip, src_ip
-| where count > 20
+index=windows EventID=4688 AND CommandLine="*-enc*"
+| eval hour=strftime(_time, "%H")
+| where hour NOT IN (8,9,10,11,12,13,14,15,16,17)
+| stats count by user, host, CommandLine
+| where count > 0
 ```
 
-## Documentation officielle
+Résultat = tous les PowerShell encodés en dehors des heures de travail.
 
-- NIST SP 800-137 (ISCM, surveillance continue) : https://csrc.nist.gov/pubs/sp/800/137/final
-- LOLBAS project (référence des binaires légitimes détournables sous Windows) : https://lolbas-project.github.io/
+### Étape 4 : Analyser les résultats
+
+Classer les résultats en trois catégories :
+
+**a) Confirmations légitimes**
+```
+user=admin_acme, 22:00, PowerShell -enc "C:\deploy\script.ps1"
+→ Admin lance un déploiement la nuit = normal pour cette entreprise
+```
+
+**b) Faux positifs détectables**
+```
+user=john, 06:00, PowerShell -enc "Get-Help"
+→ Get-Help est toujours encodé par défaut = faux positif
+```
+
+**c) Confirmations suspectes = ESCALADE EN INCIDENT**
+```
+user=jsmith, 02:15, PowerShell -enc "AAAA..." (inconnue)
+computer=RANDOM-WORKSTATION-789
+→ Escalader en incident, timeline complète, analyse mémoire
+```
+
+### Étape 5 : Documenter et capitaliser
+
+**Chaque chasse = apprentissage** :
+
+```
+Hypothèse : PowerShell -enc hors heures
+Résultat : 3 confirmations suspectes
+    - Escaladé en incident X
+    - Faux positif Get-Help (à exclure)
+    - Faux positif admin cron job (à ajouter baseline)
+
+Action : 
+  - Créer une règle de détection automatique pour les futurs PowerShell -enc hors heures
+  - Documenter les exceptions (admin deployments)
+```
+
+---
+
+## Bonnes pratiques — La clé de la réussite
+
+### 1. Structurer le programme de threat hunting
+
+**Ne pas** : chasser au hasard, réagir aux alertes, ou suivre des rumeurs
+
+**À faire** :
+- Établir un **calendrier de chasses** (ex: lundi = lateral movement, mercredi = persistence)
+- Couvrir les **tactiques MITRE ATT&CK** de façon systématique (évite les doublons)
+- Documenter **chaque chasse** en cas de redécouverte
+- **Prioriser** les chasses par risque (credential access avant discovery)
+
+Exemple calendrier :
+```
+Semaine 1 : Initial Access (T1566 phishing, T1199 trusted relationship)
+Semaine 2 : Execution (T1059 PowerShell, T1106 Native API)
+Semaine 3 : Persistence (T1053 scheduled task, T1547 boot autostart)
+Semaine 4 : Privilege Escalation (T1134 token impersonation, T1548 elevation bypass)
+Mois 2 : Credential Access (T1110 bruteforce, T1003 LSASS dump)
+Etc.
+```
+
+### 2. Impliquer l'équipe SOC (ne pas chasser seul)
+
+**Bonnes pratiques** :
+- **Briefing d'hypothèse** avant la chasse : présente à l'équipe, reçois du feedback
+- **Pair hunting** : deux analystes explorent la même hypothèse (double validation)
+- **Reviews post-chasse** : réunion avec le SOC pour discuter les résultats
+
+Bénéfice : les collègues voient tes techniques, apprennent à chasser, augmentent la qualité des alertes automatiques.
+
+### 3. Combiner chasses quantitatives et qualitatives
+
+**Quantitative** (données massives) :
+```
+"Qui exécute PowerShell -enc ? Combien de fois ?"
+Résultat : tableau avec user, count, IPs
+```
+
+**Qualitative** (investigation manuelle) :
+```
+"Pourquoi cet utilisateur exécute PowerShell -enc ?"
+Deep-dive : timeline complète, parent process, réseau, fichiers modifiés
+```
+
+Les deux ensemble donnent une compréhension complète.
+
+### 4. Utiliser MITRE ATT&CK pour valider l'hypothèse
+
+Chaque hypothèse doit mapper à une ou plusieurs techniques MITRE.
+
+Exemple :
+```
+Hypothèse : "Account Discovery (net view) suivi de Lateral Movement (psexec)"
+    ↓
+MITRE : T1087 (Account Discovery) + T1021 (Remote Services)
+    ↓
+Patterns typiques : APT28, APT29, Wizard Spider (vérifier les rapports)
+    ↓
+Prochaines étapes probables (selon MITRE) : T1005 Collection, T1041 Exfil
+```
+
+Ça te permet d'anticiper et de chasser les étapes suivantes.
+
+### 5. Documenter les échecs aussi bien que les succès
+
+**Les hypothèses infirmées sont des données** :
+
+```
+Hypothèse : "Lateral movement via WMI (Event ID 4688 wmiprvse.exe parent)"
+Résultat : Aucun match dans 6 mois de logs
+Conclusion : 
+  - Pas de mouvement latéral WMI observé (élément de baseline sain)
+  - Ou bien : les logs WMI ne sont pas collectés (gap de couverture)
+  - Action : renforcer la collecte WMI pour les prochaines chasses
+```
+
+### 6. Itérer et affiner
+
+Chaque chasse crée des données pour les **prochaines chasses**.
+
+Exemple itération :
+```
+Chasse 1 : PowerShell -enc hors heures
+  Résultat : 1 incident réel + 50 faux positifs admin
+
+Chasse 2 (affinée) : PowerShell -enc hors heures EXCEPT admin users
+  Résultat : 1 incident réel + 0 faux positifs
+  
+Chasse 3 (encore affinée) : PowerShell -enc hors heures, depuis machine jamais vue, user nouveau
+  Résultat : 1 incident réel = pure signal
+```
+
+---
+
+## Cycle complet d'une chasse (exemple réel)
+
+### Jour 1 : Préparation
+
+**Hypothèse** : "Un utilisateur crée une tâche planifiée (T1053) depuis un répertoire utilisateur, signe de persistence"
+
+**Données nécessaires** :
+- Event ID 4688 : schtasks.exe /create lancé
+- Répertoire source : NOT System32 (detection d'anormalité)
+- Validé par : Event ID 4698 (tâche planifiée créée)
+
+### Jour 2 : Exécution
+
+Requête Splunk :
+```spl
+index=windows (
+  (EventID=4688 AND Image="*schtasks.exe" AND CommandLine="*/create*") 
+  OR 
+  EventID=4698
+)
+| where NOT CurrentDirectory IN ("C:\Windows\System32", "C:\Windows\SysWow64")
+| stats count by user, host, CommandLine, EventID
+| where count > 0
+```
+
+Résultats :
+- 3 matches : tous provenant de System32 (faux positif détectable)
+- 0 vrai suspect
+
+### Jour 3 : Analyse
+
+Raffinement :
+```spl
+index=windows EventID=4688 AND Image="*schtasks.exe" AND CommandLine="*/create*"
+| where NOT CurrentDirectory IN ("C:\Windows\System32", "C:\Windows\SysWow64")
+| where NOT user IN ("SYSTEM", "NT AUTHORITY")
+| stats count by user, host
+```
+
+Résultat : aucun encore.
+
+### Jour 4 : Itération & Documentation
+
+**Conclusion** :
+- Hypothèse infirmée pour cette période
+- Collecte schtasks fonctionne correctement
+- Baseline établi : 0 tâches planifiées créées par utilisateurs non-privilegié en dehors de System32
+
+**Capitalisation** :
+- Créer une règle de détection automatique : "Si schtasks /create EN DEHORS System32 → ALERTE"
+- Document : "Task scheduler persistence hunting guide"
+
+---
+
+## Pièges à éviter
+
+### ❌ Piège 1 : Hypothèse trop vague
+
+```
+Mauvais : "Chercher les choses bizarres"
+Bon     : "Chercher les Process ID 4688 dont la CommandLine contient >3 redirects cmd"
+```
+
+### ❌ Piège 2 : Requête qui ne scale pas
+
+```
+Mauvais : SELECT * FROM all_logs WHERE anything_suspicious=true (crash SIEM)
+Bon     : Filtrer d'abord par EventID précis, PUIS appliquer conditions
+```
+
+### ❌ Piège 3 : Chasse sans data
+
+Avant de chercher, **valide que la data existe** :
+
+```powershell
+# Validation : commandLine collectée sur Event ID 4688 ?
+Get-WinEvent -FilterHashtable @{ID=4688} -MaxEvents 1 | 
+Select-Object -ExpandProperty Properties | 
+Where-Object {$_.Name -like "*Command*"}
+```
+
+### ❌ Piège 4 : Ne pas documenter
+
+La doc = la seule chose qui reste après toi. Sans doc, tu rechasses la même chose 6 mois plus tard.
+
+### ❌ Piège 5 : Confondre "normal" et "légitime"
+
+```
+Exemple : Admin PowerShell -enc PENDANT les heures de travail = peut être normal (déploiement)
+Mais : Admin PowerShell -enc vers une IP TOR = anormal MÊME si normal temporally
+```
+
+---
+
+## Techniques de chasse avancées
+
+### Technique 1 : Baseline + Anomaly Detection
+
+Établir un baseline (état normal), puis chercher les écarts.
+
+```
+Baseline : 
+  - Utilisateurs IT lancent PowerShell lun-ven 8h-18h
+  - Moyenne 5 process création par personne/jour
+  - 0 commandLine contenant "/c /s"
+
+Chasse anomaly :
+  - User non-IT lance PowerShell 23h (déviation)
+  - User lance 50 process/jour (déviation)
+  - CommandLine contient "/c /s" (déviation)
+```
+
+### Technique 2 : Temporal Correlation
+
+Chercher deux événements liés dans le temps.
+
+```
+"Qui lance net view (T1087 discovery) PUIS psexec (T1021 lateral move) 
+dans les 10 minutes suivantes ?"
+
+Pour chaque net view :
+  - Récupérer user, host, timestamp
+  - Chercher psexec du même user dans [timestamp, timestamp+10min]
+  - Si trouvé = lateral movement workflow
+```
+
+### Technique 3 : Threat Intelligence Pivoting
+
+Utiliser MITRE ATT&CK pour trouver des patterns de groupe.
+
+```
+Hypothèse : "Je cherche les signatures APT28"
+MITRE dit APT28 utilise : T1087 discovery, T1021 lateral, T1003 LSASS dump, T1041 exfil
+
+Chasse APT28-like :
+  - Chercher les 4 techniques dans 1 jour
+  - Sur le même utilisateur/host
+  - En ordre chronologique
+```
+
+### Technique 4 : Process Tree Anomaly
+
+Chercher les arbres de processus illogiques.
+
+```
+Normal :
+  explorer.exe
+    └─ cmd.exe (utilisateur clique)
+       └─ ipconfig.exe (commande lancée)
+
+Suspect :
+  System (PID 4)
+    └─ svchost.exe (service légitime)
+       └─ cmd.exe (svchost ne devrait pas lancer cmd)
+          └─ powershell.exe -enc (cmd lancée de svchost, très suspect)
+```
+
+---
+
+## Ressources & Outils
+
+### Frameworks de chasse
+
+- **MITRE ATT&CK** : https://attack.mitre.org/ (hypothèses basées sur techniques)
+- **Cyber Threat Coalition Hunting Guide** : https://www.cisa.gov/
+- **SANS Hunting Checklists** : SANS.org (acès limité)
+
+### Outils SIEM
+
+- **Splunk** : SPL queries pour threat hunting
+- **Sentinel KQL** : requêtes KQL
+- **ELK** : Kibana + Lucene queries
+- **Wazuh** : dashboards threat hunting
+
+### SOC Tools
+
+- **Timeline Tools** : Plaso (disque), Volatility (mémoire)
+- **Process Tools** : Process Hacker, SysInternals
+- **Network Tools** : Zeek, tcpdump, Wireshark
+
+---
+
+## Points clés à retenir
+
+1. **Hypothesis-driven = fondamental** : chaque chasse part d'une hypothèse testable
+2. **MITRE ATT&CK = guide** : utilise les techniques pour valider/prédire
+3. **Documenter tout** : hypothèse, résultats, exceptions, leçons
+4. **Itération = clé** : affiner basé sur résultats
+5. **Combiner quanti + quali** : données massives + investigation manuelle
+6. **Capitaliser** : chaque chasse → règle de détection automatique potentielle
+7. **Program, pas chaos** : calendrier de chasses structuré, pas réactif

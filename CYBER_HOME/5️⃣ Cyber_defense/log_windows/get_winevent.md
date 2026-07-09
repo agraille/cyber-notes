@@ -225,3 +225,4 @@ Select-Object Name, Count
 - Microsoft Get-WinEvent : https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.diagnostics/get-winevent
 - Sysmon Event IDs : https://learn.microsoft.com/en-us/sysinternals/downloads/sysmon
 - Windows Event Log XML : https://learn.microsoft.com/en-us/windows/win32/wes/eventschema
+alité « D
