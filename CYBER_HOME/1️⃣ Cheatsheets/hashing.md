@@ -242,6 +242,7 @@ $y$   → yescrypt
 sha256:N:sel:hash → PBKDF2-HMAC-SHA256
 sha1:N:sel:hash   → PBKDF2-HMAC-SHA1
 {SSHA} → Salted SHA-1 (LDAP)
+$H$ ou $P$   → phpass (WordPress, phpBB3, Joomla)
 ```
 
 ### Outils d'identification
