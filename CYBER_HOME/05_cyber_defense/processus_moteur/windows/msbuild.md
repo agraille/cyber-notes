@@ -2,7 +2,6 @@
 tags:
   - blue-team
   - defense
-  - domain/processus-moteur
 ---
 
 # MSBuild — Microsoft Build Engine Exploitation

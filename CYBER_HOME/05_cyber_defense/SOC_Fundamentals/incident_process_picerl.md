@@ -2,7 +2,6 @@
 tags:
   - blue-team
   - defense
-  - domain/soc-fundamentals
 ---
 
 # Incident Handling Process (PICERL)

@@ -2,7 +2,6 @@
 tags:
   - blue-team
   - defense
-  - domain/dfir
 ---
 
 # DFIR — Forensics Disque & Réseau

@@ -2,7 +2,6 @@
 tags:
   - blue-team
   - defense
-  - domain/log-windows
 ---
 
 # Windows Event Logs & Finding Evil
