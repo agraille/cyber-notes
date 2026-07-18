@@ -1,3 +1,8 @@
+---
+tags:
+  - schema
+---
+
 # 🎨 Schémas Visuels - Vulnérabilités Web
 
 Représentations visuelles pour comprendre les failles web.

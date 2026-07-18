@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/log-windows
+---
+
 # Get-WinEvent — Analyse de masse des logs Windows
 
 ## C'est quoi

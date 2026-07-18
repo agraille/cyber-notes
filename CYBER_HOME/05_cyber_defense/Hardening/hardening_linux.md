@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/hardening
+---
+
 # Hardening Linux
 
 ## C'est quoi

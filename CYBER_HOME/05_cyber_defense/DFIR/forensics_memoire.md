@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/dfir
+---
+
 # DFIR — Forensics Mémoire
 
 ## C'est quoi

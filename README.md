@@ -3,6 +3,7 @@
 > Une base de connaissances en cybersécurité — notes d'exploitation, cheatsheets, outils et schémas, organisée pour être utile sur le terrain.
 
 [![Contributions welcome](https://img.shields.io/badge/contributions-welcome-brightgreen.svg)](https://github.com/agraille/cyber-notes/pulls)
+[![Obsidian vault](https://img.shields.io/badge/Obsidian-vault-8b5cf6.svg?logo=obsidian&logoColor=white)](https://obsidian.md)
 
 ---
 
@@ -18,19 +19,18 @@ Le contenu couvre l'exploitation web, réseau, Active Directory, la crypto, le r
 
 ```
 cyber-notes/
-├── CTF/                        # Dossier perso pour CTF
-│   └── SCRIPT/					# Scripts utile
+├── CTF/                          # Dossier perso pour CTF
+│   └── script/                   # Scripts utiles
 │
 └── CYBER_HOME/
-    ├── 1️⃣  Cheatsheets/         # Références rapides (bash, réseau, python, reverse shells…)
-    ├── 2️⃣  Schema/              # Schémas d'attaque (SSH pivoting, AD, web)
-    ├── 3️⃣  Cyber_cours/         # Cours et supports (linux privesc, etc.)
-    ├── 4️⃣  Cyber_exploit/
-        ├── 🌐 services/         # Exploitation par service (AD, cloud, BDD, réseau…)
-        ├── 🎯 techniques/       # Techniques d'exploitation (web, binary, privesc…)
-        └── 🛠️ Tools/            # Outils offensifs documentés
-	└── 5️⃣ Cyber_defense/        # Theorie des principes de defense
-
+    ├── 01_cheatsheets/            # Références rapides (bash, réseau, python, reverse shells…)
+    ├── 02_schemas/                # Schémas d'attaque (SSH pivoting, AD, web)
+    ├── 03_cyber_cours/            # Cours et supports (linux privesc, etc.)
+    ├── 04_cyber_exploit/
+    │   ├── services/              # Exploitation par service (AD, cloud, BDD, réseau…)
+    │   ├── techniques_exploitation/ # Techniques d'exploitation (web, binary, privesc…)
+    │   └── tools/                 # Outils offensifs documentés
+    └── 05_cyber_defense/          # Théorie des principes de défense
 ```
 
 ---
@@ -66,14 +66,19 @@ cyber-notes/
 
 ## 🚀 Utilisation
 
-Clone le repo et navigue dans les dossiers selon ton besoin :
-
 ```bash
 git clone https://github.com/agraille/cyber-notes.git
 cd cyber-notes
 ```
 
-Les notes sont en Markdown, lisibles directement sur GitHub ou dans n'importe quel éditeur.
+Les notes sont en Markdown standard, lisibles sur GitHub ou dans n'importe quel éditeur. Mais ce repo est pensé comme un **vault [Obsidian](https://obsidian.md)** — c'est le mode de lecture recommandé :
+
+- Ouvre le dossier `cyber-notes` comme vault dans Obsidian
+- Commence par [`Home.md`](Home.md), le point d'entrée qui distribue vers tout le reste
+- Chaque section (`CYBER_HOME`, `services`, `tools`, `techniques_exploitation`…) a sa propre note **index** qui liste et décrit son contenu
+- Toutes les notes sont taguées (`red-team`/`blue-team`, `tool`/`technique`/`service`/`cheatsheet`…) — utilise le panneau **Tags** et le **Graph view** natifs pour naviguer visuellement et repérer les connexions entre outils et techniques, au lieu de fouiller l'arborescence de fichiers
+
+Aucun plugin communautaire requis, uniquement les fonctionnalités intégrées d'Obsidian (graph view, backlinks, tags).
 
 ---
 

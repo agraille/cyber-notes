@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/log-windows
+---
+
 # Sysmon — Détection d'activité malveillante
 
 ## C'est quoi

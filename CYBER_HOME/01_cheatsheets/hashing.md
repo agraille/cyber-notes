@@ -1,3 +1,8 @@
+---
+tags:
+  - cheatsheet
+---
+
 # Hashing — Technique
 
 > Identification, manipulation et cracking de hash cryptographiques (MD5, SHA, NTLM, bcrypt, Argon2...) en contexte pentest/CTF.

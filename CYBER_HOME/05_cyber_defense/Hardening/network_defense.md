@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/hardening
+---
+
 # Network Defense
 
 ## C'est quoi

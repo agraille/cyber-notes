@@ -1,3 +1,8 @@
+---
+tags:
+  - cheatsheet
+---
+
 # Python — Outil
 
 > Aide-mémoire Python pour le pentest et les CTF : serveurs rapides, exécution de commandes, scripts de post-exploitation et one-liners utiles.

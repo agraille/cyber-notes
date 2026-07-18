@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/soc-fundamentals
+---
+
 # MITRE ATT&CK — Classification & Prédiction d'actions
 
 ## C'est quoi

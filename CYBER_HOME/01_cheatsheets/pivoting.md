@@ -1,3 +1,8 @@
+---
+tags:
+  - cheatsheet
+---
+
 # Pivoting — Technique
 
 > Utiliser une machine compromise comme relais pour atteindre des réseaux normalement inaccessibles depuis l'extérieur.

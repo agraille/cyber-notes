@@ -1,3 +1,8 @@
+---
+tags:
+  - schema
+---
+
 # 🔀 SSH Pivoting & Rebond - Schémas Complets
 
 Guide visuel complet pour le pivoting SSH, tunnels et rebonds réseau.

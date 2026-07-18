@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/hardening
+---
+
 # Active Directory Defense
 
 ## C'est quoi

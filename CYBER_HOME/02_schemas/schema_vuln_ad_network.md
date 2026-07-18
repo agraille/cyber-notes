@@ -1,3 +1,8 @@
+---
+tags:
+  - schema
+---
+
 # 🎨 Schémas Visuels - Active Directory & Network
 
 Représentations visuelles pour les attaques AD et réseau.

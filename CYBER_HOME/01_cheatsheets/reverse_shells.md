@@ -1,3 +1,8 @@
+---
+tags:
+  - cheatsheet
+---
+
 # Reverse Shells — Technique
 
 > Créer, stabiliser et maintenir des reverse shells sur différentes plateformes et langages.

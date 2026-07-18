@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/soc-fundamentals
+---
+
 # SIEM — Centralisation, corrélation, détection
 
 ## C'est quoi

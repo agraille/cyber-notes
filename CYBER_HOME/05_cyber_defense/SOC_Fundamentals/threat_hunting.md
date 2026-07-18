@@ -1,3 +1,10 @@
+---
+tags:
+  - blue-team
+  - defense
+  - domain/soc-fundamentals
+---
+
 # Threat Hunting — Méthodologie & Bonnes Pratiques
 
 ## C'est quoi
