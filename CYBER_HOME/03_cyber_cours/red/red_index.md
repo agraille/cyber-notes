@@ -1,4 +1,4 @@
----
+<!-- ---
 tags:
   - moc
 ---
@@ -10,4 +10,4 @@ tags:
 ## Notes
 
 - [cours linux privesc clusir.pdf](cours_linux_privesc_clusir.pdf)
-- ![enum method.png](enum-method.png)
+- ![enum method.png](enum-method.png) -->

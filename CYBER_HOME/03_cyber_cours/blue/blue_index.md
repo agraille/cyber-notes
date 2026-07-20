@@ -1,4 +1,4 @@
----
+<!-- ---
 tags:
   - moc
 ---
@@ -10,4 +10,4 @@ tags:
 ## Notes
 
 - [cyber kill chain.pdf](cyber-kill-chain.pdf)
-- ![pyramid of pain.png](pyramid_of_pain.png)
+- ![pyramid of pain.png](pyramid_of_pain.png) -->
