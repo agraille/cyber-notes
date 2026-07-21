@@ -9,6 +9,7 @@ tags:
 
 ## Notes
 
+- [cookies](cookies.md) — Identification du framework derrière un cookie de session (Flask, Django, Express, Laravel, Rails, PHP, ASP.NET, JWT...), décodage et forgeage quand le secret est connu ou cassable.
 - [hashing](hashing.md) — Identification, manipulation et cracking de hash cryptographiques (MD5, SHA, NTLM, bcrypt, Argon2...) en contexte pentest/CTF.
 - [pivoting](pivoting.md) — Utiliser une machine compromise comme relais pour atteindre des réseaux normalement inaccessibles depuis l'extérieur.
 - [python](python.md) — Aide-mémoire Python pour le pentest et les CTF : serveurs rapides, exécution de commandes, scripts de post-exploitation et one-liners utiles.
